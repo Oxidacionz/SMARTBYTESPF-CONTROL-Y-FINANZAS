@@ -1,22 +1,23 @@
-# Smart Bytes - Control y Finanzas 💰🎮
+# Smart Bytes - Control y Finanzas 💰
 
-Una aplicación web interactiva de educación financiera con mecánicas de juego RPG para hacer el aprendizaje más divertido y efectivo.
+Una aplicación web moderna para la gestión y control financiero de personas y empresas. Administra tus ingresos, gastos, presupuestos y obtén análisis detallados de tu situación financiera.
 
 ## 🚀 Características
 
-- **Aprendizaje Gamificado**: Sistema RPG con batallas, niveles y progresión
-- **Mapa Interactivo**: Navegación horizontal con personaje animado
-- **Personalización**: Avatares y clases de personaje personalizables
-- **Lecciones Interactivas**: Aprende finanzas mientras juegas
-- **Seguimiento de Progreso**: Metas diarias y estadísticas de aprendizaje
+- **Gestión de Transacciones**: Registra y categoriza ingresos y gastos de forma sencilla
+- **Control Presupuestario**: Define y monitorea presupuestos mensuales por categoría
+- **Análisis Financiero**: Visualiza gráficos y estadísticas de tus finanzas
+- **Escáner de Recibos**: Digitaliza recibos y facturas automáticamente
+- **Reportes Personalizados**: Genera reportes detallados de tu actividad financiera
+- **Multi-usuario**: Soporte para gestión financiera personal y empresarial
 
 ## 🛠️ Tecnologías
 
 - **Frontend**: React 19 + TypeScript
 - **Build Tool**: Vite 6
-- **Styling**: CSS personalizado con tema RPG
+- **Styling**: CSS personalizado
 - **Backend**: Supabase
-- **IA**: Google Gemini API
+- **IA**: Google Gemini API para análisis inteligente
 - **Deployment**: GitHub Pages
 
 ## 📦 Instalación
@@ -63,13 +64,19 @@ Para el deployment automático, configura estos secrets en tu repositorio:
 - `npm run build` - Construye la aplicación para producción
 - `npm run preview` - Previsualiza el build de producción
 
-## 🎮 Cómo Usar
+## 💼 Casos de Uso
 
-1. Abre la aplicación en tu navegador
-2. Personaliza tu personaje en la sección de Perfil
-3. Navega por el mapa y selecciona lecciones
-4. Completa batallas respondiendo preguntas correctamente
-5. Gana experiencia y sube de nivel
+### Para Personas
+- Control de gastos personales y familiares
+- Planificación de presupuestos mensuales
+- Seguimiento de ahorros y metas financieras
+- Análisis de patrones de gasto
+
+### Para Empresas
+- Gestión de ingresos y egresos empresariales
+- Control de gastos operativos
+- Reportes financieros detallados
+- Análisis de rentabilidad
 
 ## 📄 Licencia
 
