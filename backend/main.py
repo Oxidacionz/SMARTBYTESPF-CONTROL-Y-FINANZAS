@@ -6,6 +6,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import asyncio
 from binance_scraper import obtener_precios_p2p, calcular_promedio
+from database import init_db, save_rates, get_rates_dict, get_latest_rates
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.interval import IntervalTrigger
 
 # --- Configuración y Caching en memoria ---
 
@@ -23,9 +26,15 @@ rates_cache = {
 
 app = FastAPI(
     title="BCV Rate Scraper API",
-    description="API que obtiene las tasas del dólar (USD) y euro (EUR) del Banco Central de Venezuela (BCV) con un mecanismo de caché.",
-    version="1.0.0"
+    description="API que obtiene las tasas del dólar (USD) y euro (EUR) del Banco Central de Venezuela (BCV) con persistencia en base de datos.",
+    version="2.0.0"
 )
+
+# Initialize database on startup
+init_db()
+
+# Initialize scheduler
+scheduler = AsyncIOScheduler()
 
 # Configurar CORS para permitir peticiones desde el frontend (localhost:5173)
 app.add_middleware(
@@ -186,6 +195,18 @@ def get_rates_with_cache():
             if new_rates["USD"]: rates_cache["USD"] = new_rates["USD"]
             if new_rates["EUR"]: rates_cache["EUR"] = new_rates["EUR"]
             rates_cache["last_updated"] = now
+            
+            # Save to database for persistence across devices
+            try:
+                save_rates(
+                    usd_bcv=new_rates["USD"],
+                    eur_bcv=new_rates["EUR"],
+                    usd_binance=None  # Will be added later if needed
+                )
+                print("Tasas guardadas en base de datos")
+            except Exception as db_error:
+                print(f"Error guardando en BD (continuando con caché): {db_error}")
+            
             return {**new_rates, "status": "SCRAPED_AND_UPDATED"}
         except HTTPException as e:
             # Si el scraping falla, servimos la caché vieja si existe, si no, lanzamos el error.
@@ -208,20 +229,50 @@ def get_rates_with_cache():
     }
 
 
+async def update_rates_job():
+    """
+    Job to update rates automatically - runs every 30 minutes
+    """
+    print("[SCHEDULER] Ejecutando actualización automática de tasas...")
+    try:
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(None, get_rates_with_cache)
+        print(f"[SCHEDULER] Tasas actualizadas: {result.get('status')}")
+    except Exception as e:
+        print(f"[SCHEDULER] Error al actualizar tasas: {e}")
+
 @app.on_event("startup")
 async def startup_event():
     """
-    Al iniciar la aplicación, realiza un scraping inicial para poblar la caché.
-    Esto evita que la primera solicitud del usuario tenga que esperar el scraping.
+    Al iniciar la aplicación, realiza un scraping inicial y configura el scheduler.
     """
-    print("Iniciando la aplicación. Realizando scraping inicial para poblar caché...")
+    print("Iniciando la aplicación. Realizando scraping inicial...")
     try:
         # Ejecutar el scraping de forma síncrona en un threadpool
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(None, get_rates_with_cache)
-        print("Caché inicial poblada con éxito.")
+        print("Caché y base de datos inicializados con éxito.")
     except Exception as e:
-        print(f"Advertencia: El scraping inicial falló. La caché se poblará en la primera solicitud exitosa. Error: {e}")
+        print(f"Advertencia: El scraping inicial falló. Error: {e}")
+    
+    # Start scheduler for automatic updates every 30 minutes
+    scheduler.add_job(
+        update_rates_job,
+        trigger=IntervalTrigger(minutes=30),
+        id='update_rates',
+        name='Update exchange rates every 30 minutes',
+        replace_existing=True
+    )
+    scheduler.start()
+    print("[SCHEDULER] Scheduler iniciado - actualizaciones cada 30 minutos")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """
+    Detener el scheduler al cerrar la aplicación
+    """
+    scheduler.shutdown()
+    print("[SCHEDULER] Scheduler detenido")
 
 
 @app.get("/tasas", summary="Obtener la tasa de USD y EUR del BCV", tags=["Tasas"])
@@ -234,6 +285,50 @@ async def get_bcv_exchange_rates():
     loop = asyncio.get_event_loop()
     result = await loop.run_in_executor(None, get_rates_with_cache)
     return result
+
+@app.get("/api/rates", summary="Obtener tasas desde base de datos (para sincronización multi-dispositivo)", tags=["Tasas"])
+async def get_rates_api():
+    """
+    Endpoint principal para obtener tasas de cambio.
+    Lee desde la base de datos para asegurar sincronización entre dispositivos.
+    Si no hay datos en BD, intenta obtenerlos del scraper.
+    """
+    # Try to get from database first
+    db_rates = get_rates_dict()
+    
+    if db_rates:
+        return {
+            "success": True,
+            "data": {
+                "usd_bcv": db_rates["usd_bcv"],
+                "eur_bcv": db_rates["eur_bcv"],
+                "usd_binance": db_rates.get("usd_binance"),
+                "timestamp": db_rates["last_updated"]
+            },
+            "source": "database"
+        }
+    
+    # Fallback: If no data in database, try to scrape and save
+    print("No hay datos en BD, intentando scraping...")
+    try:
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(None, get_rates_with_cache)
+        
+        return {
+            "success": True,
+            "data": {
+                "usd_bcv": result.get("USD"),
+                "eur_bcv": result.get("EUR"),
+                "usd_binance": None,
+                "timestamp": result.get("date")
+            },
+            "source": "scraper_fallback"
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=503,
+            detail=f"No se pudieron obtener las tasas: {str(e)}"
+        )
 
 # --- Binance P2P Endpoint ---
 

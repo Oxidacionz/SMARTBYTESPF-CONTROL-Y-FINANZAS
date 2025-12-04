@@ -79,12 +79,15 @@ function App() {
   const [manualEvents, setManualEvents] = useState<SpecialEvent[]>(INITIAL_EVENTS);
   const [shoppingHistory, setShoppingHistory] = useState<ShoppingItem[]>(INITIAL_SHOPPING);
 
+  // Backend connection state
+  const [backendConnected, setBackendConnected] = useState<boolean>(false);
+  const [lastRateUpdate, setLastRateUpdate] = useState<string>('');
+
   // Modals visibility
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEventModal, setShowEventModal] = useState(false);
   const [showAssetModal, setShowAssetModal] = useState(false);
   const [showLiquidationModal, setShowLiquidationModal] = useState(false);
-  const [showDebtModal, setShowDebtModal] = useState(false);
   const [showDebtModal, setShowDebtModal] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -126,21 +129,40 @@ function App() {
     }
   }, []);
 
-  // BCV Auto-fetch Effect
+  // BCV Auto-fetch Effect with Polling
   useEffect(() => {
     const loadBCVRates = async () => {
-      const response = await fetchBCVRates();
-      if (response.success && response.data) {
-        setRates(prev => ({
-          ...prev,
-          usd_bcv: response.data!.usd_bcv,
-          eur_bcv: response.data!.eur_bcv,
-          lastUpdated: response.data!.timestamp
-        }));
+      try {
+        const response = await fetchBCVRates();
+        if (response.success && response.data) {
+          setRates(prev => ({
+            ...prev,
+            usd_bcv: response.data!.usd_bcv,
+            eur_bcv: response.data!.eur_bcv,
+            usd_binance: response.data!.usd_binance || prev.usd_binance,
+            lastUpdated: response.data!.lastUpdated
+          }));
+          setBackendConnected(true);
+          setLastRateUpdate(new Date().toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' }));
+          console.log('✅ Tasas actualizadas desde backend:', response.data);
+        } else {
+          setBackendConnected(false);
+          console.warn('⚠️ No se pudieron obtener tasas del backend');
+        }
+      } catch (error) {
+        setBackendConnected(false);
+        console.error('❌ Error conectando con backend:', error);
       }
     };
+
+    // Initial load
     loadBCVRates();
-    loadBCVRates();
+
+    // Poll every 5 minutes (300000 ms)
+    const intervalId = setInterval(loadBCVRates, 5 * 60 * 1000);
+
+    // Cleanup interval on unmount
+    return () => clearInterval(intervalId);
   }, []);
 
   // Notifications Logic
@@ -591,12 +613,9 @@ function App() {
               <div className="text-[10px] text-blue-300 uppercase font-bold">Dólar BCV</div>
               <div className="flex items-center gap-1">
                 <span className="text-xs">Bs.</span>
-                <input
-                  type="number"
-                  value={rates.usd_bcv}
-                  onChange={(e) => setRates({ ...rates, usd_bcv: parseFloat(e.target.value) || 0 })}
-                  className="w-full bg-transparent border-none focus:ring-0 p-0 text-white font-mono font-bold text-sm"
-                />
+                <div className="w-full text-white font-mono font-bold text-sm">
+                  {rates.usd_bcv.toFixed(2)}
+                </div>
               </div>
             </div>
             {/* Euro BCV */}
@@ -604,12 +623,9 @@ function App() {
               <div className="text-[10px] text-blue-300 uppercase font-bold">Euro BCV</div>
               <div className="flex items-center gap-1">
                 <span className="text-xs">Bs.</span>
-                <input
-                  type="number"
-                  value={rates.eur_bcv}
-                  onChange={(e) => setRates({ ...rates, eur_bcv: parseFloat(e.target.value) || 0 })}
-                  className="w-full bg-transparent border-none focus:ring-0 p-0 text-white font-mono font-bold text-sm"
-                />
+                <div className="w-full text-white font-mono font-bold text-sm">
+                  {rates.eur_bcv.toFixed(2)}
+                </div>
               </div>
             </div>
             {/* Binance */}
@@ -617,18 +633,26 @@ function App() {
               <div className="text-[10px] text-yellow-500 uppercase font-bold">Binance USDT</div>
               <div className="flex items-center gap-1">
                 <span className="text-xs text-gray-400">Bs.</span>
-                <input
-                  type="number"
-                  value={rates.usd_binance}
-                  onChange={(e) => setRates({ ...rates, usd_binance: parseFloat(e.target.value) || 0 })}
-                  className="w-full bg-transparent border-none focus:ring-0 p-0 text-white font-mono font-bold text-sm"
-                />
+                <div className="w-full text-white font-mono font-bold text-sm">
+                  {rates.usd_binance.toFixed(2)}
+                </div>
               </div>
             </div>
-            {/* Disclaimer */}
-            <div className="flex items-center justify-center">
-              <p className="text-[9px] text-blue-300 leading-tight text-center">
-                *Actualiza las tasas manualmente. El bloqueo de seguridad del navegador impide la conexión automática con el BCV.
+            {/* Connection Status & Last Update */}
+            <div className="flex flex-col items-center justify-center gap-1">
+              <div className="flex items-center gap-1.5">
+                <div className={`w-2 h-2 rounded-full ${backendConnected ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`}></div>
+                <span className="text-[9px] text-blue-200">
+                  {backendConnected ? 'Conectado' : 'Desconectado'}
+                </span>
+              </div>
+              {lastRateUpdate && (
+                <p className="text-[8px] text-blue-300 leading-tight text-center">
+                  Actualizado: {lastRateUpdate}
+                </p>
+              )}
+              <p className="text-[8px] text-blue-300 leading-tight text-center opacity-75">
+                Auto-actualización cada 5 min
               </p>
             </div>
           </div>
