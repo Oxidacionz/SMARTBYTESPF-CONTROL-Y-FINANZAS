@@ -27,7 +27,7 @@ BCV_URL = "https://www.bcv.org.ve/"
 rates_cache = {
     "USD": None,
     "EUR": None,
-    "last_updated": datetime.datetime.min, # Inicializar con la fecha mínima
+    "last_updated": datetime.min, # Inicializar con la fecha mínima
     "cache_duration_hours": 4 # Duración de la caché, se refrescará cada 4 horas
 }
 
