@@ -9,6 +9,9 @@ from binance_scraper import obtener_precios_p2p, calcular_promedio
 from database import init_db, save_rates, get_rates_dict, get_latest_rates
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
+from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.date import DateTrigger
+from datetime import datetime, timedelta
 
 # --- Configuración y Caching en memoria ---
 
@@ -302,16 +305,40 @@ async def startup_event():
     except Exception as e:
         print(f"Advertencia: El scraping inicial falló. Error: {e}")
     
-    # Start scheduler for automatic updates every 30 minutes
+    # Start scheduler
+    # 1. Daily update at 6:00 AM
+    scheduler.add_job(
+        update_rates_job,
+        trigger=CronTrigger(hour=6, minute=0),
+        id='daily_update_6am',
+        name='Update exchange rates daily at 6 AM',
+        replace_existing=True
+    )
+    
+    # 2. One-time update in 10 minutes from now (for testing)
+    run_date = datetime.now() + timedelta(minutes=10)
+    scheduler.add_job(
+        update_rates_job,
+        trigger=DateTrigger(run_date=run_date),
+        id='one_time_update',
+        name='One-time update in 10 minutes',
+        replace_existing=True
+    )
+    
+    # 3. Keep the 30-minute interval as backup/regular updates
     scheduler.add_job(
         update_rates_job,
         trigger=IntervalTrigger(minutes=30),
-        id='update_rates',
+        id='interval_update',
         name='Update exchange rates every 30 minutes',
         replace_existing=True
     )
+
     scheduler.start()
-    print("[SCHEDULER] Scheduler iniciado - actualizaciones cada 30 minutos")
+    print(f"[SCHEDULER] Scheduler iniciado:")
+    print(f"   - Actualización diaria: 6:00 AM")
+    print(f"   - Actualización única: {run_date.strftime('%H:%M:%S')}")
+    print(f"   - Actualización regular: Cada 30 minutos")
 
 @app.on_event("shutdown")
 async def shutdown_event():
