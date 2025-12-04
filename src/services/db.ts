@@ -4,11 +4,11 @@ import { FinancialItem, PhysicalAsset, SpecialEvent, ShoppingItem, ExchangeRates
 
 // Helper de seguridad: Obtener usuario autenticado o fallar
 const getAuthenticatedUser = async () => {
-    const { data: { session }, error } = await supabase.auth.getSession();
-    if (error || !session?.user) {
-        throw new Error("Violación de seguridad: Intento de acceso sin sesión válida.");
-    }
-    return session.user;
+  const { data: { session }, error } = await supabase.auth.getSession();
+  if (error || !session?.user) {
+    throw new Error("Violación de seguridad: Intento de acceso sin sesión válida.");
+  }
+  return session.user;
 };
 
 // --- Directory (New) ---
@@ -43,10 +43,10 @@ export const dbItems = {
   getAll: async (): Promise<FinancialItem[]> => {
     const user = await getAuthenticatedUser();
     const { data, error } = await supabase
-        .from('financialItems')
-        .select('*')
-        .eq('user_id', user.id); 
-    
+      .from('financialItems')
+      .select('*')
+      .eq('user_id', user.id);
+
     if (error) throw error;
     return data || [];
   },
@@ -57,30 +57,30 @@ export const dbItems = {
     if (error) throw error;
   },
   addBulk: async (items: FinancialItem[]) => {
-      const user = await getAuthenticatedUser();
-      const safeItems = items.map(i => ({ ...i, user_id: user.id }));
-      const { error } = await supabase.from('financialItems').insert(safeItems);
-      if (error) {
-        console.error("Supabase Bulk Insert Error:", error.message, error.details);
-        throw error;
-      }
+    const user = await getAuthenticatedUser();
+    const safeItems = items.map(i => ({ ...i, user_id: user.id }));
+    const { error } = await supabase.from('financialItems').insert(safeItems);
+    if (error) {
+      console.error("Supabase Bulk Insert Error:", error.message, error.details);
+      throw error;
+    }
   },
   update: async (item: FinancialItem) => {
     const user = await getAuthenticatedUser();
     const { error } = await supabase
-        .from('financialItems')
-        .update(item)
-        .eq('id', item.id)
-        .eq('user_id', user.id);
+      .from('financialItems')
+      .update(item)
+      .eq('id', item.id)
+      .eq('user_id', user.id);
     if (error) throw error;
   },
   delete: async (id: string) => {
     const user = await getAuthenticatedUser();
     const { error } = await supabase
-        .from('financialItems')
-        .delete()
-        .eq('id', id)
-        .eq('user_id', user.id);
+      .from('financialItems')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', user.id);
     if (error) throw error;
   }
 };
@@ -142,10 +142,10 @@ export const dbShopping = {
   getAll: async (): Promise<ShoppingItem[]> => {
     const user = await getAuthenticatedUser();
     const { data, error } = await supabase
-        .from('shoppingHistory')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
+      .from('shoppingHistory')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false });
     if (error) throw error;
     return data || [];
   },
@@ -166,12 +166,18 @@ export const dbRates = {
   },
   update: async (rates: ExchangeRates) => {
     try {
-        await getAuthenticatedUser(); 
-        const { error } = await supabase.from('exchangeRates').upsert({ ...rates, id: 1 });
-        if (error) throw error;
+      await getAuthenticatedUser();
+      const { error } = await supabase.from('exchangeRates').upsert({ ...rates, id: 1 });
+      if (error) throw error;
     } catch (e) {
-        console.warn("No tienes permisos para actualizar la tasa global o no estás logueado.");
-        throw e;
+      console.warn("No tienes permisos para actualizar la tasa global o no estás logueado.");
+      throw e;
     }
   }
 };
+
+// Export Goals service
+export { dbGoals } from './dbGoals';
+export { dbProfile } from './dbProfile';
+export { recommendationEngine } from './recommendationEngine';
+

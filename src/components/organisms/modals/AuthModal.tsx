@@ -3,234 +3,262 @@ import React, { useState } from 'react';
 import { supabase } from '../../../supabaseClient';
 import { Button } from '../../atoms/Button';
 import { Input } from '../../atoms/Input';
-import { Lock, Mail, Chrome, Eye, EyeOff, Sun, Moon, AlertTriangle, CheckCircle, ArrowRight } from 'lucide-react';
+import { Lock, Mail, Eye, EyeOff, Sun, Moon, AlertTriangle, CheckCircle, ArrowRight } from 'lucide-react';
 
 interface AuthModalProps {
-  darkMode?: boolean;
-  toggleDarkMode?: () => void;
+    darkMode?: boolean;
+    toggleDarkMode?: () => void;
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({ darkMode, toggleDarkMode }) => {
-  const [isLogin, setIsLogin] = useState(true);
-  const [loading, setLoading] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [fullName, setFullName] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(true);
-  const [error, setError] = useState('');
-  const [successMsg, setSuccessMsg] = useState('');
+    const [isLogin, setIsLogin] = useState(true);
+    const [loading, setLoading] = useState(false);
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [fullName, setFullName] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
+    const [rememberMe, setRememberMe] = useState(true);
+    const [error, setError] = useState('');
+    const [successMsg, setSuccessMsg] = useState('');
 
-  const toggleMode = () => {
-      setIsLogin(!isLogin);
-      setError('');
-      setSuccessMsg('');
-  };
+    const toggleMode = () => {
+        setIsLogin(!isLogin);
+        setError('');
+        setSuccessMsg('');
+    };
 
-  const handleAuth = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-    setSuccessMsg('');
+    const handleAuth = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLoading(true);
+        setError('');
+        setSuccessMsg('');
 
-    try {
-      if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-        // El listener en App.tsx detectará la sesión y cerrará el modal automáticamente.
-      } else {
-        // REGISTRO
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: { full_name: fullName }
-          }
-        });
-        if (error) throw error;
+        try {
+            if (isLogin) {
+                const { error } = await supabase.auth.signInWithPassword({ email, password });
+                if (error) throw error;
+                // El listener en App.tsx detectará la sesión y cerrará el modal automáticamente.
+            } else {
+                // REGISTRO
+                const { data, error } = await supabase.auth.signUp({
+                    email,
+                    password,
+                    options: {
+                        data: { full_name: fullName }
+                    }
+                });
+                if (error) throw error;
 
-        // LÓGICA DE PASE DIRECTO
-        if (data.session) {
-            // Si Supabase devuelve sesión (Confirm Email desactivado), App.tsx lo maneja.
-            // No hacemos nada aquí, dejamos que el componente se desmonte.
-            return; 
-        } else if (data.user && !data.session) {
-            // Si hay usuario pero NO sesión, significa que Supabase está esperando confirmación de correo.
-            // Intentamos forzar el login por si acaso el usuario lo desactivó justo ahora.
-            const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({ email, password });
-            
-            if (loginData.session) {
-                return; // Entró directo
+                // LÓGICA DE PASE DIRECTO
+                if (data.session) {
+                    // Si Supabase devuelve sesión (Confirm Email desactivado), App.tsx lo maneja.
+                    // No hacemos nada aquí, dejamos que el componente se desmonte.
+                    return;
+                } else if (data.user && !data.session) {
+                    // Si hay usuario pero NO sesión, significa que Supabase está esperando confirmación de correo.
+                    // Intentamos forzar el login por si acaso el usuario lo desactivó justo ahora.
+                    const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({ email, password });
+
+                    if (loginData.session) {
+                        return; // Entró directo
+                    }
+
+                    // Si falla el login automático, es porque la confirmación de correo sigue ACTIVA en Supabase.
+                    setSuccessMsg("Cuenta registrada correctamente.");
+                    setError("Para entrar directo, debes ir a Supabase > Auth > Providers > Email y DESACTIVAR 'Confirm Email'.");
+                }
             }
-
-            // Si falla el login automático, es porque la confirmación de correo sigue ACTIVA en Supabase.
-            setSuccessMsg("Cuenta registrada correctamente.");
-            setError("Para entrar directo, debes ir a Supabase > Auth > Providers > Email y DESACTIVAR 'Confirm Email'.");
+        } catch (err: any) {
+            console.error("Auth Error:", err);
+            if (err.message.includes("Invalid login credentials")) {
+                setError("Correo o contraseña incorrectos.");
+            } else if (err.message.includes("already registered")) {
+                setError("Este correo ya está registrado. Intenta iniciar sesión.");
+            } else if (err.message.includes("Email not confirmed")) {
+                setError("Tu correo no ha sido confirmado. Desactiva la confirmación en Supabase o revisa tu email.");
+            } else {
+                setError(err.message || 'Error de autenticación');
+            }
+        } finally {
+            setLoading(false);
         }
-      }
-    } catch (err: any) {
-      console.error("Auth Error:", err);
-      if (err.message.includes("Invalid login credentials")) {
-          setError("Correo o contraseña incorrectos.");
-      } else if (err.message.includes("already registered")) {
-          setError("Este correo ya está registrado. Intenta iniciar sesión.");
-      } else if (err.message.includes("Email not confirmed")) {
-          setError("Tu correo no ha sido confirmado. Desactiva la confirmación en Supabase o revisa tu email.");
-      } else {
-          setError(err.message || 'Error de autenticación');
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
 
-  const handleGoogleLogin = async () => {
-    const origin = window.location.origin;
-    try {
-        const { error } = await supabase.auth.signInWithOAuth({
-            provider: 'google',
-            options: { redirectTo: origin }
-        });
-        if (error) throw error;
-    } catch (err: any) {
-        console.error("Google Auth Error:", err);
-        setError("Error iniciando sesión con Google. Verifica la configuración en Supabase.");
-    }
-  };
 
-  return (
-    <div className="fixed inset-0 bg-blue-900/90 backdrop-blur-md flex items-center justify-center z-[100] p-4 transition-colors">
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-gray-200 dark:border-gray-700 relative flex flex-col max-h-[90vh]">
-        
-        {toggleDarkMode && (
-          <button 
-            onClick={toggleDarkMode}
-            className="absolute top-4 right-4 z-20 p-2 rounded-full bg-white/20 hover:bg-white/30 text-white transition-colors"
-            title="Cambiar tema"
-          >
-            {darkMode ? <Sun size={20} /> : <Moon size={20} />}
-          </button>
-        )}
+    const handleDemoLogin = async () => {
+        setLoading(true);
+        const demoEmail = 'demo@smartbytes.com';
+        const demoPass = 'demo123456';
 
-        <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-8 text-center relative shrink-0">
-            <h1 className="text-2xl font-bold text-white mb-2">SMART BYTES.PF</h1>
-            <p className="text-blue-100 text-sm">Finanzas personales inteligentes</p>
-        </div>
+        try {
+            const { error } = await supabase.auth.signInWithPassword({ email: demoEmail, password: demoPass });
+            if (error) {
+                if (error.message.includes("Invalid login credentials")) {
+                    const { error: regError } = await supabase.auth.signUp({
+                        email: demoEmail,
+                        password: demoPass,
+                        options: { data: { full_name: 'Usuario Demo' } }
+                    });
+                    if (regError) throw regError;
+                    // Try login again after register
+                    await supabase.auth.signInWithPassword({ email: demoEmail, password: demoPass });
+                } else {
+                    throw error;
+                }
+            }
+        } catch (err: any) {
+            console.error("Demo Auth Error:", err);
+            setError("Error en modo demo: " + err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
 
-        <div className="p-8 overflow-y-auto">
-            <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-6 text-center">
-                {isLogin ? 'Iniciar Sesión' : 'Crear Cuenta'}
-            </h2>
+    return (
+        <div className="fixed inset-0 bg-gradient-to-br from-slate-900 via-blue-900 to-slate-800 backdrop-blur-md flex items-center justify-center z-[100] p-4 transition-colors">
+            <div className="relative w-full max-w-md">
+                {/* Efecto de brillo animado en el borde */}
+                <div className="absolute -inset-1 bg-gradient-to-r from-amber-600 via-amber-400 to-amber-600 rounded-2xl opacity-75 blur animate-pulse"></div>
 
-            {/* Mensaje de Éxito pero Bloqueo por Configuración */}
-            {successMsg && (
-                <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-4 mb-4 text-center">
-                    <div className="flex justify-center mb-2 text-green-600 dark:text-green-400">
-                        <CheckCircle size={32} />
+                <div className="relative bg-gradient-to-br from-slate-800 via-slate-700 to-slate-900 rounded-2xl shadow-2xl overflow-hidden border-4 border-amber-500/60 flex flex-col max-h-[90vh] shadow-amber-900/50">
+
+                    {/* Efecto de brillo metálico en las esquinas */}
+                    <div className="absolute top-0 left-0 w-32 h-32 bg-gradient-to-br from-amber-400/20 to-transparent rounded-tl-2xl pointer-events-none z-10"></div>
+                    <div className="absolute bottom-0 right-0 w-32 h-32 bg-gradient-to-tl from-amber-400/20 to-transparent rounded-br-2xl pointer-events-none z-10"></div>
+
+
+                    <div className="bg-gradient-to-br from-slate-700 via-slate-600 to-slate-800 p-4 text-center relative shrink-0 border-b-2 border-amber-500/30">
+                        <div className="flex justify-center mb-2">
+                            <div className="relative">
+                                {/* Anillos metálicos con efecto de brillo */}
+                                <div className="absolute inset-0 rounded-full ring-4 ring-slate-300/60 animate-pulse"></div>
+                                <div className="absolute inset-0 rounded-full ring-2 ring-slate-100/40"></div>
+
+                                <img src="/logo.jpg" alt="SMART BYTES.PF Logo" className="relative w-20 h-20 object-contain rounded-full shadow-2xl ring-4 ring-slate-400/90" />
+
+                                {/* Efecto de brillo metálico que se mueve */}
+                                <div className="absolute inset-0 rounded-full bg-gradient-to-br from-white/30 via-transparent to-slate-300/20 animate-pulse"></div>
+                                <div className="absolute top-0 left-0 w-full h-full rounded-full bg-gradient-to-r from-transparent via-white/40 to-transparent opacity-0 animate-shimmer-slow"></div>
+                            </div>
+                        </div>
+                        <h1 className="text-xl font-bold bg-gradient-to-r from-amber-200 via-amber-100 to-amber-300 bg-clip-text text-transparent mb-1 tracking-wide">SMART BYTES.PF</h1>
+                        <p className="text-slate-300 text-[10px] font-medium tracking-wider">Control y Finanzas</p>
                     </div>
-                    <h3 className="font-bold text-green-800 dark:text-green-200 mb-1">¡Registrado!</h3>
-                    <p className="text-xs text-gray-600 dark:text-gray-300">
-                        Si no has entrado automáticamente, revisa el error abajo.
-                    </p>
-                </div>
-            )}
 
-            <form onSubmit={handleAuth} className="space-y-4">
-                {!isLogin && (
-                    <Input 
-                        placeholder="Nombre Completo" 
-                        value={fullName}
-                        onChange={(e) => setFullName(e.target.value)}
-                        required
-                        className="pl-2"
-                    />
-                )}
-                
-                <div className="relative">
-                    <Mail size={18} className="absolute left-3 top-3 text-gray-400 z-10" />
-                    <Input 
-                        type="email" 
-                        placeholder="Correo electrónico" 
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        required
-                        className="pl-10"
-                    />
-                </div>
+                    <div className="p-5 overflow-y-auto bg-gradient-to-br from-slate-800 via-slate-700 to-slate-900">
+                        <h2 className="text-base font-bold bg-gradient-to-r from-amber-200 to-amber-100 bg-clip-text text-transparent mb-3 text-center">
+                            {isLogin ? 'Iniciar Sesión' : 'Crear Cuenta'}
+                        </h2>
 
-                <div className="relative">
-                    <Lock size={18} className="absolute left-3 top-3 text-gray-400 z-10" />
-                    <Input 
-                        type={showPassword ? "text" : "password"}
-                        placeholder="Contraseña" 
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        required
-                        className="pl-10 pr-10"
-                    />
-                    <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-3 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 z-10 focus:outline-none"
-                    >
-                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                    </button>
-                </div>
+                        {/* Mensaje de Éxito pero Bloqueo por Configuración */}
+                        {successMsg && (
+                            <div className="bg-green-900/30 border-2 border-green-500/50 rounded-xl p-2 mb-2 text-center backdrop-blur-sm">
+                                <div className="flex justify-center mb-1 text-green-400">
+                                    <CheckCircle size={20} />
+                                </div>
+                                <h3 className="font-bold text-green-300 mb-1 text-xs">¡Registrado!</h3>
+                                <p className="text-[10px] text-green-200/80">
+                                    Si no has entrado automáticamente, revisa el error abajo.
+                                </p>
+                            </div>
+                        )}
 
-                {isLogin && (
-                <div className="flex items-center justify-between text-sm">
-                    <label className="flex items-center gap-2 cursor-pointer text-gray-600 dark:text-gray-300">
-                    <input 
-                        type="checkbox" 
-                        checked={rememberMe}
-                        onChange={(e) => setRememberMe(e.target.checked)}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    Recordar contraseña
-                    </label>
-                </div>
-                )}
+                        <form onSubmit={handleAuth} className="space-y-2.5">
+                            {!isLogin && (
+                                <Input
+                                    placeholder="Nombre Completo"
+                                    value={fullName}
+                                    onChange={(e) => setFullName(e.target.value)}
+                                    required
+                                    className="pl-2 bg-white border-2 border-slate-600 text-gray-900 placeholder-slate-500 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/30 h-9 text-sm"
+                                />
+                            )}
 
-                {error && (
-                    <div className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-300 p-3 rounded-lg text-xs flex items-start gap-2 border border-red-100 dark:border-red-900/30">
-                        <AlertTriangle size={16} className="shrink-0 mt-0.5" />
-                        <span>{error}</span>
+                            <div className="relative">
+                                <Mail size={14} className="absolute left-3 top-2.5 text-amber-400 z-10" />
+                                <Input
+                                    type="email"
+                                    placeholder="Correo electrónico"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    required
+                                    className="pl-9 bg-white border-2 border-slate-600 text-gray-900 placeholder-slate-500 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/30 h-9 text-sm"
+                                />
+                            </div>
+
+                            <div className="relative">
+                                <Lock size={14} className="absolute left-3 top-2.5 text-amber-400 z-10" />
+                                <Input
+                                    type={showPassword ? "text" : "password"}
+                                    placeholder="Contraseña"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    required
+                                    className="pl-9 pr-9 bg-white border-2 border-slate-600 text-gray-900 placeholder-slate-500 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/30 h-9 text-sm"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    className="absolute right-3 top-2.5 text-amber-500 hover:text-amber-400 z-10 focus:outline-none"
+                                >
+                                    {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                                </button>
+                            </div>
+
+                            {isLogin && (
+                                <div className="flex items-center justify-between text-[10px]">
+                                    <label className="flex items-center gap-1.5 cursor-pointer text-slate-300">
+                                        <input
+                                            type="checkbox"
+                                            checked={rememberMe}
+                                            onChange={(e) => setRememberMe(e.target.checked)}
+                                            className="rounded border-slate-600 bg-slate-900/50 text-amber-500 focus:ring-amber-500"
+                                        />
+                                        Recordar contraseña
+                                    </label>
+                                </div>
+                            )}
+
+                            {error && (
+                                <div className="bg-red-900/30 text-red-300 p-2 rounded-lg text-[10px] flex items-start gap-1.5 border-2 border-red-500/50 backdrop-blur-sm">
+                                    <AlertTriangle size={12} className="shrink-0 mt-0.5" />
+                                    <span>{error}</span>
+                                </div>
+                            )}
+
+                            <Button fullWidth className="bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 hover:from-amber-500 hover:via-amber-400 hover:to-amber-500 h-9 text-sm shadow-lg shadow-amber-900/50 border-2 border-amber-400/30 text-slate-900 font-bold">
+                                {loading ? 'Procesando...' : (isLogin ? 'Entrar' : 'Registrarse')}
+                                {!loading && <ArrowRight size={16} />}
+                            </Button>
+                        </form>
+
+                        <div className="my-3 flex items-center gap-2">
+                            <div className="h-[1px] bg-gradient-to-r from-transparent via-amber-500/30 to-transparent flex-grow"></div>
+                            <span className="text-[10px] text-amber-400/70 font-medium">O prueba</span>
+                            <div className="h-[1px] bg-gradient-to-r from-transparent via-amber-500/30 to-transparent flex-grow"></div>
+                        </div>
+
+                        <Button
+                            fullWidth
+                            variant="secondary"
+                            onClick={handleDemoLogin}
+                            className="bg-gradient-to-r from-emerald-900/50 to-emerald-800/50 border-2 border-emerald-500/30 hover:border-emerald-400/50 text-emerald-300 hover:text-emerald-200 backdrop-blur-sm shadow-lg shadow-emerald-900/30 h-9 text-xs"
+                        >
+                            Modo Demo (Invitado)
+                        </Button>
+
+                        <p className="mt-3 text-center text-[10px] text-slate-400">
+                            {isLogin ? '¿No tienes cuenta? ' : '¿Ya tienes cuenta? '}
+                            <button
+                                onClick={toggleMode}
+                                className="text-amber-400 font-bold hover:text-amber-300 hover:underline transition-colors"
+                            >
+                                {isLogin ? 'Regístrate' : 'Inicia Sesión'}
+                            </button>
+                        </p>
                     </div>
-                )}
-
-                <Button fullWidth className="bg-blue-600 hover:bg-blue-700 h-12 text-lg shadow-lg">
-                    {loading ? 'Procesando...' : (isLogin ? 'Entrar' : 'Registrarse')}
-                    {!loading && <ArrowRight size={20} />}
-                </Button>
-            </form>
-
-            <div className="my-6 flex items-center gap-2">
-                <div className="h-[1px] bg-gray-200 dark:bg-gray-700 flex-grow"></div>
-                <span className="text-xs text-gray-400">O continúa con</span>
-                <div className="h-[1px] bg-gray-200 dark:bg-gray-700 flex-grow"></div>
+                </div>
             </div>
-
-            <Button 
-                fullWidth 
-                variant="secondary" 
-                onClick={handleGoogleLogin}
-                icon={<Chrome size={18} />}
-                className="bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200"
-            >
-                Google
-            </Button>
-
-            <p className="mt-6 text-center text-sm text-gray-500 dark:text-gray-400">
-                {isLogin ? '¿No tienes cuenta? ' : '¿Ya tienes cuenta? '}
-                <button 
-                    onClick={toggleMode}
-                    className="text-blue-600 dark:text-blue-400 font-bold hover:underline"
-                >
-                    {isLogin ? 'Regístrate' : 'Inicia Sesión'}
-                </button>
-            </p>
         </div>
-      </div>
-    </div>
-  );
+    );
 };

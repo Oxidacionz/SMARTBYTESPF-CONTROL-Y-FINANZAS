@@ -6,15 +6,17 @@ interface ItemFormProps {
   onAdd?: (item: Omit<FinancialItem, 'id'>) => void;
   onEdit?: (item: FinancialItem) => void;
   initialData?: FinancialItem;
+  preselectedType?: 'asset' | 'liability';
+  preselectedCategory?: Category;
   onClose: () => void;
 }
 
-export const ItemForm: React.FC<ItemFormProps> = ({ onAdd, onEdit, initialData, onClose }) => {
+export const ItemForm: React.FC<ItemFormProps> = ({ onAdd, onEdit, initialData, preselectedType, preselectedCategory, onClose }) => {
   const [name, setName] = useState(initialData?.name || '');
   const [amount, setAmount] = useState(initialData?.amount.toString() || '');
   const [currency, setCurrency] = useState<Currency>(initialData?.currency || 'USD');
-  const [type, setType] = useState<'asset' | 'liability'>(initialData?.type || 'liability');
-  const [category, setCategory] = useState<Category>(initialData?.category || 'Expense');
+  const [type, setType] = useState<'asset' | 'liability'>(initialData?.type || preselectedType || 'liability');
+  const [category, setCategory] = useState<Category>(initialData?.category || preselectedCategory || 'Expense');
   const [isMonthly, setIsMonthly] = useState(initialData?.isMonthly || false);
   const [dayOfMonth, setDayOfMonth] = useState(initialData?.dayOfMonth?.toString() || '');
   const [note, setNote] = useState(initialData?.note || '');
@@ -27,7 +29,7 @@ export const ItemForm: React.FC<ItemFormProps> = ({ onAdd, onEdit, initialData, 
     const numericAmount = parseFloat(amount);
     const numericCustomRate = customRate ? parseFloat(customRate) : undefined;
     const numericDay = dayOfMonth ? parseInt(dayOfMonth) : undefined;
-    
+
     const newItemData = {
       name,
       amount: numericAmount,
@@ -57,12 +59,19 @@ export const ItemForm: React.FC<ItemFormProps> = ({ onAdd, onEdit, initialData, 
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md overflow-hidden transition-colors border border-gray-200 dark:border-gray-700 max-h-[90vh] overflow-y-auto">
         <div className="bg-blue-900 dark:bg-blue-950 p-4 flex justify-between items-center text-white sticky top-0 z-10">
-          <h3 className="font-bold text-lg">{isEditing ? 'Editar Movimiento' : 'Agregar Movimiento'}</h3>
+          <h3 className="font-bold text-lg">
+            {isEditing ? 'Editar Movimiento' :
+              preselectedCategory === 'Receivable' ? 'Agregar: Me Deben' :
+                preselectedCategory === 'Savings' ? 'Agregar: Ahorro' :
+                  preselectedType === 'asset' ? 'Agregar: Tengo' :
+                    preselectedType === 'liability' ? 'Agregar: Gasto/Deuda' :
+                      'Agregar Movimiento'}
+          </h3>
           <button onClick={onClose} className="hover:text-blue-200 transition-colors"><X size={24} /></button>
         </div>
-        
+
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          
+
           {/* Type Selection */}
           <div className="grid grid-cols-2 gap-2 bg-gray-100 dark:bg-gray-700 p-1 rounded-lg">
             <button
@@ -127,15 +136,15 @@ export const ItemForm: React.FC<ItemFormProps> = ({ onAdd, onEdit, initialData, 
                 Tasa de cambio personalizada (Opcional)
               </label>
               <div className="flex items-center gap-2">
-                 <span className="text-sm font-bold text-gray-500 dark:text-gray-400">Bs/$</span>
-                 <input
+                <span className="text-sm font-bold text-gray-500 dark:text-gray-400">Bs/$</span>
+                <input
                   type="number"
                   step="0.01"
                   value={customRate}
                   onChange={(e) => setCustomRate(e.target.value)}
                   className="w-full border border-blue-200 dark:border-blue-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md p-1.5 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
                   placeholder="Usar tasa global"
-                 />
+                />
               </div>
               <p className="text-[10px] text-blue-600 dark:text-blue-400 mt-1">
                 Si se deja vacío, se usará la tasa global del Dashboard.
@@ -144,7 +153,7 @@ export const ItemForm: React.FC<ItemFormProps> = ({ onAdd, onEdit, initialData, 
           )}
 
           <div className="grid grid-cols-1 gap-4">
-             <div>
+            <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Categoría</label>
               <select
                 value={category}
@@ -158,6 +167,7 @@ export const ItemForm: React.FC<ItemFormProps> = ({ onAdd, onEdit, initialData, 
                     <option value="Crypto">Cripto/Binance</option>
                     <option value="Wallet">Billetera (Zinli, etc)</option>
                     <option value="Receivable">Me Deben</option>
+                    <option value="Savings">Ahorro</option>
                   </>
                 ) : (
                   <>
@@ -182,11 +192,11 @@ export const ItemForm: React.FC<ItemFormProps> = ({ onAdd, onEdit, initialData, 
                 />
                 <label htmlFor="monthly" className="ml-2 text-sm text-gray-700 dark:text-gray-300 font-medium">Es un gasto mensual fijo</label>
               </div>
-              
+
               {isMonthly && (
                 <div className="pl-6 animate-fadeIn">
-                   <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Día del mes de pago (Para calendario)</label>
-                   <input
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Día del mes de pago (Para calendario)</label>
+                  <input
                     type="number"
                     min="1"
                     max="31"
@@ -194,21 +204,21 @@ export const ItemForm: React.FC<ItemFormProps> = ({ onAdd, onEdit, initialData, 
                     onChange={(e) => setDayOfMonth(e.target.value)}
                     className="w-20 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md p-1.5 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
                     placeholder="Ej: 15"
-                   />
+                  />
                 </div>
               )}
             </div>
           )}
 
           <div>
-             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nota (Opcional)</label>
-             <input
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nota (Opcional)</label>
+            <input
               type="text"
               value={note}
               onChange={(e) => setNote(e.target.value)}
               className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none transition-colors"
               placeholder="Ej: BCV, Tasa oficial..."
-             />
+            />
           </div>
 
           <button

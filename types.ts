@@ -1,16 +1,17 @@
 
 export type Currency = 'USD' | 'VES' | 'EUR';
 
-export type Category = 
-  | 'Bank' 
-  | 'Wallet' 
-  | 'Crypto' 
-  | 'Cash' 
-  | 'Debt' 
-  | 'Expense' 
-  | 'Receivable' 
+export type Category =
+  | 'Bank'
+  | 'Wallet'
+  | 'Crypto'
+  | 'Cash'
+  | 'Debt'
+  | 'Expense'
+  | 'Receivable'
   | 'Income'
-  | 'Shopping'; // For one-off purchases
+  | 'Shopping' // For one-off purchases
+  | 'Savings'; // For savings goals
 
 export interface FinancialItem {
   id: string;
@@ -19,10 +20,10 @@ export interface FinancialItem {
   currency: Currency;
   category: Category;
   type: 'asset' | 'liability';
-  isMonthly: boolean; 
+  isMonthly: boolean;
   dayOfMonth?: number; // 1-31, for recurring expenses
-  note?: string; 
-  customExchangeRate?: number; 
+  note?: string;
+  customExchangeRate?: number;
 }
 
 export interface PhysicalAsset {
