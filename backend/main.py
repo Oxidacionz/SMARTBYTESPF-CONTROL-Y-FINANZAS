@@ -12,6 +12,10 @@ from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
 from datetime import datetime, timedelta
+import pytz
+
+# Configurar zona horaria de Venezuela
+VENEZUELA_TZ = pytz.timezone('America/Caracas')
 
 # --- Configuración y Caching en memoria ---
 
@@ -306,17 +310,20 @@ async def startup_event():
         print(f"Advertencia: El scraping inicial falló. Error: {e}")
     
     # Start scheduler
-    # 1. Daily update at 6:00 AM
+    # 1. Daily update at 6:00 AM Venezuela Time
     scheduler.add_job(
         update_rates_job,
-        trigger=CronTrigger(hour=6, minute=0),
+        trigger=CronTrigger(hour=6, minute=0, timezone=VENEZUELA_TZ),
         id='daily_update_6am',
-        name='Update exchange rates daily at 6 AM',
+        name='Update exchange rates daily at 6 AM VET',
         replace_existing=True
     )
     
-    # 2. One-time update in 10 minutes from now (for testing)
-    run_date = datetime.now() + timedelta(minutes=10)
+    # 2. One-time update in 10 minutes from now (Venezuela Time)
+    # Obtener hora actual en Venezuela
+    now_venezuela = datetime.now(VENEZUELA_TZ)
+    run_date = now_venezuela + timedelta(minutes=10)
+    
     scheduler.add_job(
         update_rates_job,
         trigger=DateTrigger(run_date=run_date),
@@ -326,6 +333,7 @@ async def startup_event():
     )
     
     # 3. Keep the 30-minute interval as backup/regular updates
+    # Interval triggers don't need timezone as they are relative
     scheduler.add_job(
         update_rates_job,
         trigger=IntervalTrigger(minutes=30),
@@ -336,8 +344,8 @@ async def startup_event():
 
     scheduler.start()
     print(f"[SCHEDULER] Scheduler iniciado:")
-    print(f"   - Actualización diaria: 6:00 AM")
-    print(f"   - Actualización única: {run_date.strftime('%H:%M:%S')}")
+    print(f"   - Actualización diaria: 6:00 AM (Hora Venezuela)")
+    print(f"   - Actualización única: {run_date.strftime('%H:%M:%S')} (Hora Venezuela)")
     print(f"   - Actualización regular: Cada 30 minutos")
 
 @app.on_event("shutdown")
