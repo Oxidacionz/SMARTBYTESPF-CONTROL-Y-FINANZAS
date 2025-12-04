@@ -232,12 +232,36 @@ def get_rates_with_cache():
 async def update_rates_job():
     """
     Job to update rates automatically - runs every 30 minutes
+    Scrapes both BCV and Binance rates
     """
     print("[SCHEDULER] Ejecutando actualización automática de tasas...")
     try:
+        # Scrape BCV rates
         loop = asyncio.get_event_loop()
         result = await loop.run_in_executor(None, get_rates_with_cache)
-        print(f"[SCHEDULER] Tasas actualizadas: {result.get('status')}")
+        print(f"[SCHEDULER] Tasas BCV actualizadas: {result.get('status')}")
+        
+        # Scrape Binance rates
+        try:
+            precios_compra = obtener_precios_p2p("BUY")
+            precios_venta = obtener_precios_p2p("SELL")
+            
+            promedio_compra = calcular_promedio(precios_compra)
+            promedio_venta = calcular_promedio(precios_venta)
+            promedio_general = (promedio_compra + promedio_venta) / 2 if promedio_compra and promedio_venta else 0
+            
+            if promedio_general > 0:
+                # Update database with all rates including Binance
+                save_rates(
+                    usd_bcv=result.get('USD', 0),
+                    eur_bcv=result.get('EUR', 0),
+                    usd_binance=promedio_general
+                )
+                print(f"[SCHEDULER] Tasa Binance actualizada: {promedio_general:.2f}")
+            else:
+                print("[SCHEDULER] No se pudo obtener tasa de Binance")
+        except Exception as binance_error:
+            print(f"[SCHEDULER] Error scraping Binance: {binance_error}")
     except Exception as e:
         print(f"[SCHEDULER] Error al actualizar tasas: {e}")
 
@@ -248,10 +272,33 @@ async def startup_event():
     """
     print("Iniciando la aplicación. Realizando scraping inicial...")
     try:
-        # Ejecutar el scraping de forma síncrona en un threadpool
+        # Ejecutar el scraping BCV de forma síncrona en un threadpool
         loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, get_rates_with_cache)
-        print("Caché y base de datos inicializados con éxito.")
+        result = await loop.run_in_executor(None, get_rates_with_cache)
+        print("Caché BCV inicializado con éxito.")
+        
+        # Scrape Binance rates on startup
+        try:
+            precios_compra = obtener_precios_p2p("BUY")
+            precios_venta = obtener_precios_p2p("SELL")
+            
+            promedio_compra = calcular_promedio(precios_compra)
+            promedio_venta = calcular_promedio(precios_venta)
+            promedio_general = (promedio_compra + promedio_venta) / 2 if promedio_compra and promedio_venta else 0
+            
+            if promedio_general > 0:
+                # Save all rates to database
+                save_rates(
+                    usd_bcv=result.get('USD', 0),
+                    eur_bcv=result.get('EUR', 0),
+                    usd_binance=promedio_general
+                )
+                print(f"Tasa Binance inicial: {promedio_general:.2f}")
+            else:
+                print("No se pudo obtener tasa inicial de Binance")
+        except Exception as binance_error:
+            print(f"Error scraping Binance inicial: {binance_error}")
+            
     except Exception as e:
         print(f"Advertencia: El scraping inicial falló. Error: {e}")
     
