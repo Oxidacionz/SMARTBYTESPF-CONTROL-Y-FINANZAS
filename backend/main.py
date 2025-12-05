@@ -319,34 +319,34 @@ async def startup_event():
         replace_existing=True
     )
     
-    # 2. One-time update in 10 minutes from now (Venezuela Time)
+    # 2. One-time update in 5 minutes from now (Venezuela Time) - For testing
     # Obtener hora actual en Venezuela
     now_venezuela = datetime.now(VENEZUELA_TZ)
-    run_date = now_venezuela + timedelta(minutes=10)
+    run_date = now_venezuela + timedelta(minutes=5)
     
     scheduler.add_job(
         update_rates_job,
         trigger=DateTrigger(run_date=run_date),
         id='one_time_update',
-        name='One-time update in 10 minutes',
+        name='One-time update in 5 minutes (testing)',
         replace_existing=True
     )
     
-    # 3. Keep the 30-minute interval as backup/regular updates
+    # 3. Regular updates every 4 hours
     # Interval triggers don't need timezone as they are relative
     scheduler.add_job(
         update_rates_job,
-        trigger=IntervalTrigger(minutes=30),
+        trigger=IntervalTrigger(hours=4),
         id='interval_update',
-        name='Update exchange rates every 30 minutes',
+        name='Update exchange rates every 4 hours',
         replace_existing=True
     )
 
     scheduler.start()
     print(f"[SCHEDULER] Scheduler iniciado:")
     print(f"   - Actualización diaria: 6:00 AM (Hora Venezuela)")
-    print(f"   - Actualización única: {run_date.strftime('%H:%M:%S')} (Hora Venezuela)")
-    print(f"   - Actualización regular: Cada 30 minutos")
+    print(f"   - Actualización de prueba: {run_date.strftime('%H:%M:%S')} (Hora Venezuela)")
+    print(f"   - Actualización regular: Cada 4 horas")
 
 @app.on_event("shutdown")
 async def shutdown_event():
