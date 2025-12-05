@@ -8,7 +8,13 @@ from datetime import datetime
 import os
 
 # Database setup
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./exchange_rates.db")
+# Database setup
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./exchange_rates_v2.db")
+
+# Fix for SQLAlchemy compatibility with some providers that use postgres://
+if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
@@ -21,7 +27,8 @@ class ExchangeRate(Base):
     id = Column(Integer, primary_key=True, index=True)
     usd_bcv = Column(Float, nullable=False)
     eur_bcv = Column(Float, nullable=False)
-    usd_binance = Column(Float, nullable=True)
+    usd_binance_buy = Column(Float, nullable=True)
+    usd_binance_sell = Column(Float, nullable=True)
     last_updated = Column(DateTime, default=datetime.utcnow, nullable=False)
     source = Column(String, default="bcv.org.ve")
 
@@ -40,14 +47,15 @@ def get_db():
     finally:
         db.close()
 
-def save_rates(usd_bcv: float, eur_bcv: float, usd_binance: float = None):
+def save_rates(usd_bcv: float, eur_bcv: float, usd_binance_buy: float = None, usd_binance_sell: float = None):
     """
     Save exchange rates to database
     
     Args:
         usd_bcv: USD rate from BCV
         eur_bcv: EUR rate from BCV
-        usd_binance: USD rate from Binance (optional)
+        usd_binance_buy: USD Buy rate from Binance
+        usd_binance_sell: USD Sell rate from Binance
     
     Returns:
         ExchangeRate object
@@ -57,7 +65,8 @@ def save_rates(usd_bcv: float, eur_bcv: float, usd_binance: float = None):
         rate = ExchangeRate(
             usd_bcv=usd_bcv,
             eur_bcv=eur_bcv,
-            usd_binance=usd_binance,
+            usd_binance_buy=usd_binance_buy,
+            usd_binance_sell=usd_binance_sell,
             last_updated=datetime.utcnow()
         )
         db.add(rate)
@@ -101,7 +110,8 @@ def get_rates_dict():
         return {
             "usd_bcv": rate.usd_bcv,
             "eur_bcv": rate.eur_bcv,
-            "usd_binance": rate.usd_binance,
+            "usd_binance_buy": rate.usd_binance_buy,
+            "usd_binance_sell": rate.usd_binance_sell,
             "last_updated": rate.last_updated.isoformat(),
             "source": rate.source
         }

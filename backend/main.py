@@ -1,6 +1,5 @@
 import requests
 from bs4 import BeautifulSoup
-import datetime
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -27,7 +26,7 @@ BCV_URL = "https://www.bcv.org.ve/"
 rates_cache = {
     "USD": None,
     "EUR": None,
-    "last_updated": datetime.datetime.min, # Inicializar con la fecha mínima
+    "last_updated": datetime.min, # Inicializar con la fecha mínima
     "cache_duration_hours": 4 # Duración de la caché, se refrescará cada 4 horas
 }
 
@@ -147,7 +146,7 @@ def scrape_bcv_rates():
         return {
             "USD": round(usd_rate, 4) if usd_rate else None,
             "EUR": round(eur_rate, 4) if eur_rate else None,
-            "date": datetime.datetime.now().isoformat()
+            "date": datetime.now().isoformat()
         }
 
     except requests.exceptions.RequestException as e:
@@ -169,7 +168,7 @@ def get_rates_with_cache():
     """
     global rates_cache
     
-    now = datetime.datetime.now()
+    now = datetime.now()
     
     # Lógica de fin de semana (Sábado = 5, Domingo = 6)
     if now.weekday() >= 5: # Si es Sábado o Domingo
@@ -208,7 +207,8 @@ def get_rates_with_cache():
                 save_rates(
                     usd_bcv=new_rates["USD"],
                     eur_bcv=new_rates["EUR"],
-                    usd_binance=None  # Will be added later if needed
+                    usd_binance_buy=None,
+                    usd_binance_sell=None
                 )
                 print("Tasas guardadas en base de datos")
             except Exception as db_error:
@@ -255,16 +255,16 @@ async def update_rates_job():
             
             promedio_compra = calcular_promedio(precios_compra)
             promedio_venta = calcular_promedio(precios_venta)
-            promedio_general = (promedio_compra + promedio_venta) / 2 if promedio_compra and promedio_venta else 0
             
-            if promedio_general > 0:
+            if promedio_compra > 0 and promedio_venta > 0:
                 # Update database with all rates including Binance
                 save_rates(
                     usd_bcv=result.get('USD', 0),
                     eur_bcv=result.get('EUR', 0),
-                    usd_binance=promedio_general
+                    usd_binance_buy=promedio_compra,
+                    usd_binance_sell=promedio_venta
                 )
-                print(f"[SCHEDULER] Tasa Binance actualizada: {promedio_general:.2f}")
+                print(f"[SCHEDULER] Tasa Binance actualizada: Buy={promedio_compra:.2f}, Sell={promedio_venta:.2f}")
             else:
                 print("[SCHEDULER] No se pudo obtener tasa de Binance")
         except Exception as binance_error:
@@ -291,16 +291,16 @@ async def startup_event():
             
             promedio_compra = calcular_promedio(precios_compra)
             promedio_venta = calcular_promedio(precios_venta)
-            promedio_general = (promedio_compra + promedio_venta) / 2 if promedio_compra and promedio_venta else 0
             
-            if promedio_general > 0:
+            if promedio_compra > 0 and promedio_venta > 0:
                 # Save all rates to database
                 save_rates(
                     usd_bcv=result.get('USD', 0),
                     eur_bcv=result.get('EUR', 0),
-                    usd_binance=promedio_general
+                    usd_binance_buy=promedio_compra,
+                    usd_binance_sell=promedio_venta
                 )
-                print(f"Tasa Binance inicial: {promedio_general:.2f}")
+                print(f"Tasa Binance inicial: Buy={promedio_compra:.2f}, Sell={promedio_venta:.2f}")
             else:
                 print("No se pudo obtener tasa inicial de Binance")
         except Exception as binance_error:
@@ -384,7 +384,8 @@ async def get_rates_api():
             "data": {
                 "usd_bcv": db_rates["usd_bcv"],
                 "eur_bcv": db_rates["eur_bcv"],
-                "usd_binance": db_rates.get("usd_binance"),
+                "usd_binance_buy": db_rates.get("usd_binance_buy"),
+                "usd_binance_sell": db_rates.get("usd_binance_sell"),
                 "timestamp": db_rates["last_updated"]
             },
             "source": "database"
@@ -401,7 +402,8 @@ async def get_rates_api():
             "data": {
                 "usd_bcv": result.get("USD"),
                 "eur_bcv": result.get("EUR"),
-                "usd_binance": None,
+                "usd_binance_buy": None,
+                "usd_binance_sell": None,
                 "timestamp": result.get("date")
             },
             "source": "scraper_fallback"

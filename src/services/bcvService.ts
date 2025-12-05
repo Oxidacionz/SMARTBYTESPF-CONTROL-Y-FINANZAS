@@ -10,7 +10,8 @@ interface RatesApiResponse {
     data: {
         usd_bcv: number;
         eur_bcv: number;
-        usd_binance: number | null;
+        usd_binance_buy: number | null;
+        usd_binance_sell: number | null;
         timestamp: string;
     };
     source: string;
@@ -44,10 +45,12 @@ export const fetchBCVRates = async (): Promise<FetchBCVRatesResponse> => {
         }
 
         // Transform API response to ExchangeRates format
+        // Transform API response to ExchangeRates format
         const rates: ExchangeRates = {
             usd_bcv: apiData.data.usd_bcv,
             eur_bcv: apiData.data.eur_bcv,
-            usd_binance: apiData.data.usd_binance || 0,
+            usd_binance_buy: apiData.data.usd_binance_buy || 0,
+            usd_binance_sell: apiData.data.usd_binance_sell || 0,
             lastUpdated: apiData.data.timestamp
         };
 
@@ -89,7 +92,8 @@ export const bcvService = {
             if (ratesResult.success && ratesResult.data) {
                 result.usd_bcv = ratesResult.data.usd_bcv;
                 result.eur_bcv = ratesResult.data.eur_bcv;
-                result.usd_binance = ratesResult.data.usd_binance;
+                result.usd_binance_buy = ratesResult.data.usd_binance_buy;
+                result.usd_binance_sell = ratesResult.data.usd_binance_sell;
                 result.lastUpdated = ratesResult.data.lastUpdated;
             }
 
@@ -97,8 +101,9 @@ export const bcvService = {
             if (binanceResponse && binanceResponse.ok) {
                 const binanceData = await binanceResponse.json();
                 if (typeof binanceData.promedio_compra_ves === 'number' && typeof binanceData.promedio_venta_ves === 'number') {
-                    // Use average of buy/sell for usd_binance
-                    result.usd_binance = (binanceData.promedio_compra_ves + binanceData.promedio_venta_ves) / 2;
+                    // Update separate fields
+                    result.usd_binance_buy = binanceData.promedio_compra_ves;
+                    result.usd_binance_sell = binanceData.promedio_venta_ves;
                 }
             }
 
