@@ -1,7 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Configuration from your provided details
-const supabaseUrl = 'https://zfesgvclmgzsaldjoyjq.supabase.co';
-const supabaseKey = 'sb_publishable_VH2E4NxtPX1cIZjOoLzjmQ_IFPgedwf'; // Using the publishable key as requested
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+    console.warn('Supabase env vars missing. Submissions may fail.');
+}
 
 export const supabase = createClient(supabaseUrl, supabaseKey);
