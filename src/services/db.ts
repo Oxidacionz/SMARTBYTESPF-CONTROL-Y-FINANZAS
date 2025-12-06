@@ -158,17 +158,17 @@ export const dbShopping = {
 };
 
 // --- Exchange Rates (Shared Resource) ---
-// --- Exchange Rates (Shared Resource) ---
+import { APP_CONSTANTS } from '../config/constants';
+
 export const dbRates = {
   get: async (): Promise<ExchangeRates | null> => {
     // Intenta leer de la tabla 'exchange_rates' (formato backend/Railway)
-    const RAILWAY_RATES_ID = "00000000-0000-0000-0000-000000000001";
 
     try {
       const { data, error } = await supabase
         .from('exchange_rates')
         .select('*')
-        .eq('id', RAILWAY_RATES_ID)
+        .eq('id', APP_CONSTANTS.RAILWAY_RATES_ID)
         .single();
 
       if (data) return data;
@@ -184,14 +184,13 @@ export const dbRates = {
     }
   },
   update: async (rates: ExchangeRates) => {
-    const RAILWAY_RATES_ID = "00000000-0000-0000-0000-000000000001";
     try {
       await getAuthenticatedUser();
 
       // Actualizar en la tabla principal 'exchange_rates'
       const { error } = await supabase.from('exchange_rates').upsert({
         ...rates,
-        id: RAILWAY_RATES_ID,
+        id: APP_CONSTANTS.RAILWAY_RATES_ID,
         is_global: true
       });
 

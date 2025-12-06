@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { FinancialItem, SpecialEvent, Currency, ShoppingItem, ExchangeRates, PhysicalAsset, UserProfile, DirectoryEntity, FinancialGoal, UserFinancialProfile, FinancialRecommendation, BudgetDistribution } from './types';
 import { Dashboard } from './components/organisms/Dashboard';
 import { ItemForm } from './components/organisms/forms/ItemForm';
@@ -31,16 +30,12 @@ import { FinancialPlanDashboard } from './components/organisms/FinancialPlanDash
 
 // DB Services
 import { dbItems, dbAssets, dbEvents, dbShopping, dbRates, dbDirectory, dbGoals, dbProfile, recommendationEngine } from './services/db';
-import { bcvService, forceRefreshRates } from './services/bcvService';
 import { supabase } from './supabaseClient';
+import { useExchangeRates } from './hooks/useExchangeRates';
 
 import {
   Calendar, Plus, Trash2, Edit, Box, TrendingUp, RefreshCw, UploadCloud, Download, Clock, Settings, ShoppingBag, PieChart, ChevronUp
 } from 'lucide-react';
-
-const INITIAL_RATES: ExchangeRates = {
-  usd_bcv: 45.50, eur_bcv: 49.20, usd_binance_buy: 46.80, usd_binance_sell: 47.10, lastUpdated: new Date().toISOString()
-};
 
 // Robust ID Generator (Fallback for non-secure contexts)
 const generateId = () => {
@@ -59,7 +54,7 @@ function App() {
 
   const [items, setItems] = useState<FinancialItem[]>([]);
   const [physicalAssets, setPhysicalAssets] = useState<PhysicalAsset[]>([]);
-  const [rates, setRates] = useState<ExchangeRates>(INITIAL_RATES);
+  // rates managed by hook
   const [manualEvents, setManualEvents] = useState<SpecialEvent[]>([]);
   const [shoppingHistory, setShoppingHistory] = useState<ShoppingItem[]>([]);
   const [directory, setDirectory] = useState<DirectoryEntity[]>([]);
@@ -68,9 +63,12 @@ function App() {
   const [recommendations, setRecommendations] = useState<FinancialRecommendation[]>([]);
   const [showProfileForm, setShowProfileForm] = useState(false);
 
+  // Loading & Sync managed partly by hook, partly here for other items
   const [isLoading, setIsLoading] = useState(false);
-  const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'error'>('synced');
-  const [isRatesUpdating, setIsRatesUpdating] = useState(false);
+  // syncStatus managed by hook for rates, but we use strict local one? 
+  // We'll reuse the hook's status or merge logic. 
+  // Ideally, app has global sync status. For now, let's keep a local one for Item CRUD.
+  const [appSyncStatus, setAppSyncStatus] = useState<'synced' | 'syncing' | 'error'>('synced');
 
   const [activeTab, setActiveTab] = useState<'dashboard' | 'assets' | 'liabilities' | 'inventory' | 'goals' | 'advisor'>('dashboard');
   const [darkMode, setDarkMode] = useState(true);
@@ -94,7 +92,6 @@ function App() {
   const [showDistributionChart, setShowDistributionChart] = useState(false);
   const [showReportsMenu, setShowReportsMenu] = useState(false);
 
-
   const [editingItem, setEditingItem] = useState<FinancialItem | null>(null);
   const [editingEvent, setEditingEvent] = useState<SpecialEvent | null>(null);
   const [editingAsset, setEditingAsset] = useState<PhysicalAsset | null>(null);
@@ -103,9 +100,32 @@ function App() {
 
   const lastLoadedUserId = useRef<string | null>(null);
 
+  // Helper for notifications (passed to hooks)
+  const addNotification = useCallback((n: Notification) => {
+    setNotifications(prev => {
+      const exists = prev.some(existing => existing.id === n.id);
+      if (exists) return prev;
+      return [n, ...prev];
+    });
+  }, []);
+
+  // Custom Hook for Exchange Rates
+  const {
+    rates,
+    setRates,
+    isUpdating: isRatesUpdating,
+    syncStatus: ratesSyncStatus,
+    setSyncStatus: setRatesSyncStatus,
+    handleRateUpdate,
+    forceUpdate: handleForceRatesUpdate
+  } = useExchangeRates(addNotification);
+
+  // Derived Sync Status (Show 'syncing' if either App or Rates are syncing)
+  const syncStatus = appSyncStatus === 'syncing' || ratesSyncStatus === 'syncing' ? 'syncing' :
+    appSyncStatus === 'error' || ratesSyncStatus === 'error' ? 'error' : 'synced';
+
   // Auth & Data Load Effect
   useEffect(() => {
-    // 1. Initial Load (Page Refresh)
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
         setSession(session);
@@ -114,7 +134,6 @@ function App() {
           loadUserData(session.user.id);
         }
       } else {
-        // CHECK FOR DEMO SESSION
         const demoSessionStr = sessionStorage.getItem('demoSession');
         if (demoSessionStr) {
           try {
@@ -125,7 +144,6 @@ function App() {
               loadUserData(demoSession.user.id);
             }
           } catch (e) {
-            console.error("Invalid demo session");
             setIsLoading(false);
           }
         } else {
@@ -134,24 +152,15 @@ function App() {
       }
     });
 
-    // 2. Auth State Listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      // PROTEGER MODO DEMO: Si estamos en modo demo, ignorar actualizaciones vacías de Supabase
       const isDemoMode = sessionStorage.getItem('demoSession');
-
-      if (isDemoMode && !session) {
-        // Si estamos en demo y Supabase dice "no hay sesión", mantenemos la sesión demo
-        // No hacemos nada, dejamos que el useEffect inicial maneje la sesión demo
-        return;
-      }
+      if (isDemoMode && !session) return;
 
       setSession(session);
 
       if (event === 'SIGNED_OUT') {
-        // Verificar doblemente si realmente queremos salir (no es demo)
         if (!isDemoMode) {
           lastLoadedUserId.current = null;
-          // Clear local data immediately
           setItems([]);
           setPhysicalAssets([]);
           setManualEvents([]);
@@ -161,7 +170,6 @@ function App() {
           setActiveTab('dashboard');
         }
       } else if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
-        // Only load data if user changed or hasn't been loaded
         if (session && session.user.id !== lastLoadedUserId.current) {
           lastLoadedUserId.current = session.user.id;
           loadUserData(session.user.id);
@@ -172,26 +180,23 @@ function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-
-
   const loadUserData = async (userId: string) => {
     setIsLoading(true);
-    setSyncStatus('syncing');
+    setAppSyncStatus('syncing');
 
     try {
       if (userId === 'demo-user') {
-        // MODO DEMO: Cargar datos locales ficticios o vacíos
         setUserProfile({ id: 'demo-user', email: 'demo@smartbytes.com', full_name: 'Usuario Demo' });
         setItems([
           { id: '1', name: 'Sueldo Demo', amount: 300, currency: 'USD', category: 'Income', type: 'asset', isMonthly: true },
           { id: '2', name: 'Alquiler Demo', amount: 120, currency: 'USD', category: 'Expense', type: 'liability', isMonthly: true }
         ]);
-        setSyncStatus('synced');
+        setAppSyncStatus('synced');
         setIsLoading(false);
         return;
       }
 
-      // 1. Load Profile (Safe)
+      // 1. Load Profile
       try {
         const { data: profile } = await supabase.from('profiles').select('*').eq('id', userId).single();
         if (profile) setUserProfile(profile);
@@ -215,40 +220,19 @@ function App() {
       setShoppingHistory(fetchedShopping);
 
       // 3. Load Independent Data
-      try {
-        const fetchedRates = await dbRates.get();
-        if (fetchedRates) {
-          // Migration: Handle old rate structure with usd_binance
-          const migratedRates: ExchangeRates = {
-            usd_bcv: fetchedRates.usd_bcv || INITIAL_RATES.usd_bcv,
-            eur_bcv: fetchedRates.eur_bcv || INITIAL_RATES.eur_bcv,
-            usd_binance_buy: (fetchedRates as any).usd_binance_buy || (fetchedRates as any).usd_binance || INITIAL_RATES.usd_binance_buy,
-            usd_binance_sell: (fetchedRates as any).usd_binance_sell || (fetchedRates as any).usd_binance || INITIAL_RATES.usd_binance_sell,
-            lastUpdated: fetchedRates.lastUpdated || new Date().toISOString()
-          };
-          setRates(migratedRates);
-        }
-
-        // Try to fetch live rates from local backend
-        try {
-          const liveRates = await bcvService.getAllRates();
-          if (liveRates) {
-            setRates(prev => ({ ...prev, ...liveRates }));
-          }
-        } catch (bcvError) {
-          console.log("Local BCV service not available or error fetching rates:", bcvError);
-        }
-      } catch (e) { console.warn("Could not load global rates", e); }
+      // Note: Rates are handled by useExchangeRates hook on mount, 
+      // but we can optionally fetch them here to be sure or just rely on the hook.
+      // Hook will run its effect independently.
 
       try {
         const fetchedDirectory = await dbDirectory.getAll();
         setDirectory(fetchedDirectory);
-      } catch (e) { console.warn("Could not load directory. Table might be missing.", e); }
+      } catch (e) { console.warn("Could not load directory", e); }
 
       try {
         const fetchedGoals = await dbGoals.getAll();
         setGoals(fetchedGoals);
-      } catch (e) { console.warn("Could not load goals. Table might be missing.", e); }
+      } catch (e) { console.warn("Could not load goals", e); }
 
       try {
         const fetchedProfile = await dbProfile.getProfile();
@@ -259,10 +243,10 @@ function App() {
         }
       } catch (e) { console.warn("Could not load profile/recommendations.", e); }
 
-      setSyncStatus('synced');
+      setAppSyncStatus('synced');
     } catch (e) {
       console.error("Critical Load Error", e);
-      setSyncStatus('error');
+      setAppSyncStatus('error');
     } finally {
       setIsLoading(false);
     }
@@ -277,7 +261,6 @@ function App() {
     const recurring = items
       .filter(i => i.isMonthly && i.dayOfMonth)
       .map(i => {
-        // Safe string conversion for date padding
         const currentMonth = new Date().getMonth() + 1;
         const monthStr = currentMonth.toString().padStart(2, '0');
         const dayStr = (i.dayOfMonth || 1).toString().padStart(2, '0');
@@ -291,28 +274,6 @@ function App() {
       });
     return [...manualEvents, ...recurring].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
   }, [items, manualEvents]);
-
-  // Automatic Rates Sync (Every 5 minutes)
-  useEffect(() => {
-    const fetchLatestRates = async () => {
-      try {
-        const cloudRates = await dbRates.get();
-        if (cloudRates) {
-          setRates(prevRates => ({
-            ...prevRates,
-            ...cloudRates
-          }));
-          console.log("🔄 Auto-sync: Tasas actualizadas desde Supabase");
-        }
-      } catch (e) {
-        console.error("Auto-sync rates error:", e);
-      }
-    };
-
-    fetchLatestRates(); // Initial check
-    const intervalId = setInterval(fetchLatestRates, 5 * 60 * 1000); // 5 minutes
-    return () => clearInterval(intervalId);
-  }, []);
 
   // Tutorial Effect
   useEffect(() => {
@@ -328,7 +289,6 @@ function App() {
       const newNotifications: Notification[] = [];
       const today = new Date();
 
-      // 1. System Update Notification
       const hasSeenUpdate = localStorage.getItem('hasSeenUpdate_v2');
       if (!hasSeenUpdate) {
         newNotifications.push({
@@ -342,7 +302,6 @@ function App() {
         localStorage.setItem('hasSeenUpdate_v2', 'true');
       }
 
-      // 2. Event Notifications (Upcoming 7 days)
       allEvents.forEach(event => {
         const [month, day] = (event.date || '00-00').split('-').map(Number);
         const eventDate = new Date(today.getFullYear(), month - 1, day);
@@ -366,11 +325,6 @@ function App() {
         }
       });
 
-      // 3. Savings Achievements
-      // Note: liquidNetWorth and totalPatrimony are calculated later in the component. 
-      // We might need to move this effect or use a separate effect that depends on them.
-      // For now, we'll skip them or move the calculation up.
-
       if (newNotifications.length > 0) {
         setNotifications(prev => {
           const existingIds = new Set(prev.map(n => n.id));
@@ -382,83 +336,6 @@ function App() {
 
     generateNotifications();
   }, [allEvents]);
-
-  const handleRateUpdate = async (newRates: ExchangeRates) => {
-    setRates(newRates);
-    setSyncStatus('syncing');
-    try {
-      await dbRates.update(newRates);
-      setSyncStatus('synced');
-    } catch (e) {
-      console.warn("Rate update failed on server", e);
-      setSyncStatus('synced');
-    }
-  };
-
-  const handleForceRatesUpdate = async () => {
-    setIsRatesUpdating(true);
-    try {
-      console.log("🔄 Buscando tasas actualizadas en Supabase...");
-
-      // 1. Intentar obtener datos directos de Supabase (donde Railway escribe)
-      const supabaseData = await dbRates.get();
-
-      if (supabaseData) {
-        console.log("✅ Datos encontrados en Supabase:", supabaseData);
-
-        // Actualizar estado local
-        setRates(prev => ({
-          ...prev,
-          usd_bcv: supabaseData.usd_bcv,
-          eur_bcv: supabaseData.eur_bcv,
-          usd_binance_buy: supabaseData.usd_binance_buy || 0,
-          usd_binance_sell: supabaseData.usd_binance_sell || 0,
-          lastUpdated: supabaseData.lastUpdated
-        }));
-
-        setSyncStatus('synced');
-        setNotifications(prev => [{
-          id: `rates-supa-${Date.now()}`,
-          title: 'Tasas Sincronizadas (Nube)',
-          message: 'Se han obtenido las tasas más recientes desde la base de datos.',
-          type: 'success',
-          date: 'Ahora',
-          read: false
-        }, ...prev]);
-
-        setIsRatesUpdating(false);
-        return; // Éxito con Supabase
-      }
-
-      console.warn("⚠️ No se encontraron tasas en Supabase. Intentando forzar scrape local...");
-
-      // 2. Fallback: Forzar scrape en backend local si Supabase falla
-      const result = await forceRefreshRates();
-      if (result.success && result.data) {
-        setRates(result.data);
-        await dbRates.update(result.data);
-        setSyncStatus('synced');
-        setNotifications(prev => [{
-          id: `rates-updated-local-${Date.now()}`,
-          title: 'Tasas Actualizadas (Local)',
-          message: 'Se forzó una actualización local exitosa.',
-          type: 'success',
-          date: 'Ahora',
-          read: false
-        }, ...prev]);
-      } else {
-        console.warn("Failed to force update rates:", result.error);
-        setSyncStatus('error');
-      }
-    } catch (e) {
-      console.error("Error forcing rates update:", e);
-      setSyncStatus('error');
-    } finally {
-      setIsRatesUpdating(false);
-    }
-  };
-
-
 
   const toUSD = (item: { amount: number, currency: Currency, customExchangeRate?: number }) => {
     if (item.currency === 'USD') return item.amount;
@@ -486,23 +363,23 @@ function App() {
     if (!session) return;
     const item: FinancialItem = { ...newItem, id: generateId(), user_id: session.user.id };
     setItems(prev => [...prev, item]);
-    setSyncStatus('syncing');
-    try { await dbItems.add(item); setSyncStatus('synced'); } catch { setSyncStatus('error'); setItems(prev => prev.filter(i => i.id !== item.id)); }
+    setAppSyncStatus('syncing');
+    try { await dbItems.add(item); setAppSyncStatus('synced'); } catch { setAppSyncStatus('error'); setItems(prev => prev.filter(i => i.id !== item.id)); }
   };
 
   const handleUpdateItem = async (updatedItem: FinancialItem) => {
     setItems(prev => prev.map(i => i.id === updatedItem.id ? updatedItem : i));
     setEditingItem(null);
-    setSyncStatus('syncing');
-    try { await dbItems.update(updatedItem); setSyncStatus('synced'); } catch { setSyncStatus('error'); }
+    setAppSyncStatus('syncing');
+    try { await dbItems.update(updatedItem); setAppSyncStatus('synced'); } catch { setAppSyncStatus('error'); }
   };
 
   const handleDeleteItem = async (id: string) => {
     if (window.confirm('¿Eliminar registro?')) {
       const oldItems = [...items];
       setItems(prev => prev.filter(i => i.id !== id));
-      setSyncStatus('syncing');
-      try { await dbItems.delete(id); setSyncStatus('synced'); } catch { setSyncStatus('error'); setItems(oldItems); }
+      setAppSyncStatus('syncing');
+      try { await dbItems.delete(id); setAppSyncStatus('synced'); } catch { setAppSyncStatus('error'); setItems(oldItems); }
     }
   };
 
@@ -518,16 +395,16 @@ function App() {
     // Optimistic update
     setItems(prev => [...prev, ...itemsToAdd]);
     setShowUploadModal(false);
-    setSyncStatus('syncing');
+    setAppSyncStatus('syncing');
 
     try {
       await dbItems.addBulk(itemsToAdd);
-      setSyncStatus('synced');
+      setAppSyncStatus('synced');
     } catch (e) {
       console.error("Bulk Import Error:", e);
-      setSyncStatus('error');
+      setAppSyncStatus('error');
       alert("Hubo un error guardando los datos. Verifica que todos los campos sean válidos.");
-      loadUserData(session.user.id); // Revert to server state
+      loadUserData(session.user.id);
     }
   };
 
@@ -539,7 +416,7 @@ function App() {
     const updatedItemsState = items.map(i => i.id === settlingDebtItem.id ? updatedDebtItem : i);
     setItems(updatedItemsState);
 
-    setSyncStatus('syncing');
+    setAppSyncStatus('syncing');
     try {
       await dbItems.update(updatedDebtItem);
       if (method === 'money' && details.accountId) {
@@ -557,20 +434,20 @@ function App() {
         setPhysicalAssets(prev => [...prev, newAsset]);
         await dbAssets.add(newAsset);
       }
-      setSyncStatus('synced');
-    } catch { setSyncStatus('error'); }
+      setAppSyncStatus('synced');
+    } catch { setAppSyncStatus('error'); }
     setShowDebtModal(false);
   };
 
   const handleAddToDirectory = async (entity: DirectoryEntity): Promise<DirectoryEntity | null> => {
     try {
-      setSyncStatus('syncing');
+      setAppSyncStatus('syncing');
       const created = await dbDirectory.add(entity);
       setDirectory(prev => [...prev, created]);
-      setSyncStatus('synced');
+      setAppSyncStatus('synced');
       return created;
     } catch (e) {
-      setSyncStatus('error');
+      setAppSyncStatus('error');
       return null;
     }
   };
@@ -592,54 +469,52 @@ function App() {
   // Goals Handlers
   const handleAddGoal = async (newGoal: Omit<FinancialGoal, 'id' | 'created_at' | 'updated_at' | 'current_amount' | 'status'>) => {
     if (!session) return;
-    setSyncStatus('syncing');
+    setAppSyncStatus('syncing');
     try {
       const goalToAdd = { ...newGoal, current_amount: 0, status: 'active' as const };
       const addedGoal = await dbGoals.add(goalToAdd);
       setGoals(prev => [addedGoal, ...prev]);
-      setSyncStatus('synced');
+      setAppSyncStatus('synced');
     } catch (e) {
       console.error("Error adding goal:", e);
-      setSyncStatus('error');
+      setAppSyncStatus('error');
     }
   };
 
   const handleUpdateGoal = async (updatedGoal: FinancialGoal) => {
-    setSyncStatus('syncing');
+    setAppSyncStatus('syncing');
     try {
       await dbGoals.update(updatedGoal);
       setGoals(prev => prev.map(g => g.id === updatedGoal.id ? updatedGoal : g));
       setEditingGoal(null);
-      setSyncStatus('synced');
+      setAppSyncStatus('synced');
     } catch (e) {
       console.error("Error updating goal:", e);
-      setSyncStatus('error');
+      setAppSyncStatus('error');
     }
   };
 
   const handleDeleteGoal = async (id: string) => {
     if (window.confirm('¿Eliminar esta meta?')) {
-      setSyncStatus('syncing');
+      setAppSyncStatus('syncing');
       try {
         await dbGoals.delete(id);
         setGoals(prev => prev.filter(g => g.id !== id));
-        setSyncStatus('synced');
+        setAppSyncStatus('synced');
       } catch (e) {
         console.error("Error deleting goal:", e);
-        setSyncStatus('error');
+        setAppSyncStatus('error');
       }
     }
   };
 
   const handleAddContribution = async (goalId: string, amount: number) => {
-    setSyncStatus('syncing');
+    setAppSyncStatus('syncing');
     try {
       await dbGoals.addContribution(goalId, amount);
       const updatedGoal = await dbGoals.getById(goalId);
       if (updatedGoal) {
         setGoals(prev => prev.map(g => g.id === goalId ? updatedGoal : g));
-
-        // Check if goal was just completed and add notification
         if (updatedGoal.status === 'completed' && updatedGoal.completed_at) {
           setNotifications(prev => [{
             id: `goal-completed-${goalId}`,
@@ -651,29 +526,28 @@ function App() {
           }, ...prev]);
         }
       }
-      setSyncStatus('synced');
+      setAppSyncStatus('synced');
     } catch (e) {
       console.error("Error adding contribution:", e);
-      setSyncStatus('error');
+      setAppSyncStatus('error');
     }
   };
 
   // Profile Handlers
   const handleSaveProfile = async (profile: UserFinancialProfile) => {
-    setSyncStatus('syncing');
+    setAppSyncStatus('syncing');
     try {
       const savedProfile = await dbProfile.saveProfile(profile);
       setFinancialProfile(savedProfile);
       setShowProfileForm(false);
 
-      // Generate new recommendations
       const newRecs = recommendationEngine.generateRecommendations(savedProfile, items, goals);
       await dbProfile.saveRecommendations(newRecs);
 
       const updatedRecs = await dbProfile.getRecommendations();
       setRecommendations(updatedRecs);
 
-      setSyncStatus('synced');
+      setAppSyncStatus('synced');
       setNotifications(prev => [{
         id: `profile-updated-${Date.now()}`,
         title: 'Perfil Actualizado',
@@ -684,7 +558,7 @@ function App() {
       }, ...prev]);
     } catch (e) {
       console.error("Error saving profile:", e);
-      setSyncStatus('error');
+      setAppSyncStatus('error');
     }
   };
 
@@ -751,7 +625,6 @@ function App() {
     </Card>
   );
 
-  // Check if user has skipped authentication
   const hasSkippedAuth = localStorage.getItem('skipAuth') === 'true';
 
   if (!session && !hasSkippedAuth) return <AuthModal darkMode={darkMode} toggleDarkMode={() => setDarkMode(!darkMode)} />;
@@ -773,7 +646,6 @@ function App() {
         }
         navigation={
           <div className="flex flex-wrap items-center gap-2 mb-2">
-            {/* Tabs de Navegación */}
             {[
               { id: 'dashboard', label: 'Resumen' },
               { id: 'assets', label: 'Tengo / Me Deben' },
@@ -784,11 +656,7 @@ function App() {
             ].map(tab => (
               <Button key={tab.id} size="sm" variant={activeTab === tab.id ? 'primary' : 'secondary'} onClick={() => setActiveTab(tab.id as any)} className="h-8 px-3 text-xs">{tab.label}</Button>
             ))}
-
-            {/* Gastos Hormiga */}
             <Button variant="secondary" size="sm" onClick={() => setShowShoppingModal(true)} icon={<ShoppingBag size={14} />} className="whitespace-nowrap bg-white dark:bg-gray-800 border border-orange-200 dark:border-orange-800 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/30 h-8 px-3 text-xs">Gastos Hormiga</Button>
-
-            {/* Agregar */}
             <Button size="sm" onClick={() => { setEditingItem(null); setShowAddModal(true); }} icon={<Plus size={16} />} className="bg-blue-600 text-white shadow-md hover:bg-blue-700 whitespace-nowrap h-8 px-3 text-xs">+ Agregar</Button>
           </div>
         }
@@ -796,69 +664,30 @@ function App() {
           <>
             {activeTab === 'dashboard' && (
               <>
-                {/* Botones de Distribución y Reportes en Resumen */}
                 <div className="flex flex-wrap gap-2 mb-4">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => setShowDistributionChart(!showDistributionChart)}
-                    icon={showDistributionChart ? <ChevronUp size={14} /> : <PieChart size={14} />}
-                    className="whitespace-nowrap bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/30 dark:to-pink-900/30 border border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/50 h-8 px-3 text-xs"
-                  >
+                  <Button variant="secondary" size="sm" onClick={() => setShowDistributionChart(!showDistributionChart)} icon={showDistributionChart ? <ChevronUp size={14} /> : <PieChart size={14} />} className="whitespace-nowrap bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/30 dark:to-pink-900/30 border border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/50 h-8 px-3 text-xs">
                     {showDistributionChart ? 'Ocultar' : 'Ver'} Distribución
                   </Button>
-
                   <div className="relative">
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => setShowReportsMenu(!showReportsMenu)}
-                      icon={<Download size={14} />}
-                      className="whitespace-nowrap bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 h-8 px-3 text-xs"
-                    >
-                      Reportes
-                    </Button>
-
+                    <Button variant="secondary" size="sm" onClick={() => setShowReportsMenu(!showReportsMenu)} icon={<Download size={14} />} className="whitespace-nowrap bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 h-8 px-3 text-xs">Reportes</Button>
                     {showReportsMenu && (
                       <>
                         <div className="fixed inset-0 z-40" onClick={() => setShowReportsMenu(false)}></div>
                         <div className="absolute right-0 mt-1 bg-gradient-to-br from-slate-800 to-slate-900 border-2 border-slate-600/50 rounded-lg shadow-2xl z-50 min-w-[200px]">
-                          <button
-                            onClick={() => { setShowUploadModal(true); setShowReportsMenu(false); }}
-                            className="w-full text-left px-4 py-3 text-sm text-slate-300 hover:bg-slate-700/50 hover:text-amber-400 transition-colors flex items-center gap-2 rounded-t-lg"
-                          >
-                            <UploadCloud size={14} />
-                            Subir Reporte
-                          </button>
-                          <button
-                            onClick={() => { exportToExcel(items, physicalAssets, shoppingHistory); setShowReportsMenu(false); }}
-                            className="w-full text-left px-4 py-3 text-sm text-slate-300 hover:bg-slate-700/50 hover:text-amber-400 transition-colors flex items-center gap-2 rounded-b-lg"
-                          >
-                            <Download size={14} />
-                            Descargar Reporte
-                          </button>
+                          <button onClick={() => { setShowUploadModal(true); setShowReportsMenu(false); }} className="w-full text-left px-4 py-3 text-sm text-slate-300 hover:bg-slate-700/50 hover:text-amber-400 transition-colors flex items-center gap-2 rounded-t-lg"><UploadCloud size={14} /> Subir Reporte</button>
+                          <button onClick={() => { exportToExcel(items, physicalAssets, shoppingHistory); setShowReportsMenu(false); }} className="w-full text-left px-4 py-3 text-sm text-slate-300 hover:bg-slate-700/50 hover:text-amber-400 transition-colors flex items-center gap-2 rounded-b-lg"><Download size={14} /> Descargar Reporte</button>
                         </div>
                       </>
                     )}
                   </div>
                 </div>
-
                 <Dashboard items={items} exchangeRate={rates.usd_bcv} toUSD={toUSD} formatMoney={formatMoney} onSettleDebt={(item) => { setSettlingDebtItem(item); setShowDebtModal(true); }} onOpenShopping={() => setShowShoppingModal(true)} showChart={showDistributionChart} />
               </>
             )}
             {activeTab === 'assets' && renderList('asset')}
             {activeTab === 'liabilities' && renderList('liability')}
             {activeTab === 'goals' && (
-              <GoalsManager
-                goals={goals}
-                formatMoney={formatMoney}
-                onAddGoal={() => { setEditingGoal(null); setShowGoalForm(true); }}
-                onEditGoal={(goal) => { setEditingGoal(goal); setShowGoalForm(true); }}
-                onDeleteGoal={handleDeleteGoal}
-                onAddContribution={(goal) => { setContributingGoal(goal); setShowContributionModal(true); }}
-                calculateProgress={dbGoals.calculateProgress}
-                getDaysRemaining={dbGoals.getDaysRemaining}
-              />
+              <GoalsManager goals={goals} formatMoney={formatMoney} onAddGoal={() => { setEditingGoal(null); setShowGoalForm(true); }} onEditGoal={(goal) => { setEditingGoal(goal); setShowGoalForm(true); }} onDeleteGoal={handleDeleteGoal} onAddContribution={(goal) => { setContributingGoal(goal); setShowContributionModal(true); }} calculateProgress={dbGoals.calculateProgress} getDaysRemaining={dbGoals.getDaysRemaining} />
             )}
             {activeTab === 'inventory' && (
               <div className="space-y-4">
@@ -876,32 +705,13 @@ function App() {
             )}
             {activeTab === 'advisor' && (
               financialProfile ? (
-                <FinancialPlanDashboard
-                  profile={financialProfile}
-                  recommendations={recommendations}
-                  budgetDistribution={recommendationEngine.calculateBudgetDistribution(financialProfile)}
-                  onEditProfile={() => setShowProfileForm(true)}
-                  onDismissRecommendation={handleDismissRecommendation}
-                />
+                <FinancialPlanDashboard profile={financialProfile} recommendations={recommendations} budgetDistribution={recommendationEngine.calculateBudgetDistribution(financialProfile)} onEditProfile={() => setShowProfileForm(true)} onDismissRecommendation={handleDismissRecommendation} />
               ) : (
                 <Card className="p-8 text-center max-w-2xl mx-auto mt-8">
-                  <div className="flex justify-center mb-4">
-                    <div className="p-4 bg-blue-100 dark:bg-blue-900/30 rounded-full">
-                      <TrendingUp size={48} className="text-blue-600 dark:text-blue-400" />
-                    </div>
-                  </div>
-                  <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-200 mb-2">
-                    Descubre tu Plan Financiero Ideal
-                  </h2>
-                  <p className="text-gray-600 dark:text-gray-400 mb-6">
-                    Completa tu perfil financiero en unos minutos y obtén recomendaciones personalizadas sobre ahorro, inversión y presupuesto basadas en tu edad, metas y estilo de vida.
-                  </p>
-                  <Button
-                    onClick={() => setShowProfileForm(true)}
-                    className="bg-blue-600 hover:bg-blue-700 px-8 py-3 text-lg"
-                  >
-                    Crear mi Perfil Financiero
-                  </Button>
+                  <div className="flex justify-center mb-4"><div className="p-4 bg-blue-100 dark:bg-blue-900/30 rounded-full"><TrendingUp size={48} className="text-blue-600 dark:text-blue-400" /></div></div>
+                  <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-200 mb-2">Descubre tu Plan Financiero Ideal</h2>
+                  <p className="text-gray-600 dark:text-gray-400 mb-6">Completa tu perfil financiero en unos minutos y obtén recomendaciones personalizadas sobre ahorro, inversión y presupuesto basadas en tu edad, metas y estilo de vida.</p>
+                  <Button onClick={() => setShowProfileForm(true)} className="bg-blue-600 hover:bg-blue-700 px-8 py-3 text-lg">Crear mi Perfil Financiero</Button>
                 </Card>
               )
             )}
@@ -928,11 +738,7 @@ function App() {
       {showProfileForm && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
           <div className="w-full max-w-2xl my-8">
-            <FinancialProfileForm
-              initialData={financialProfile || undefined}
-              onSave={handleSaveProfile}
-              onCancel={() => setShowProfileForm(false)}
-            />
+            <FinancialProfileForm initialData={financialProfile || undefined} onSave={handleSaveProfile} onCancel={() => setShowProfileForm(false)} />
           </div>
         </div>
       )}
@@ -941,4 +747,5 @@ function App() {
     </>
   );
 }
+
 export default App;
