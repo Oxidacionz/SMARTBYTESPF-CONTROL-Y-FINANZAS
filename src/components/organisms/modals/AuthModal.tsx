@@ -85,31 +85,31 @@ export const AuthModal: React.FC<AuthModalProps> = ({ darkMode, toggleDarkMode }
     };
 
 
-    const handleDemoLogin = async () => {
+    const handleDemoLogin = () => {
         setLoading(true);
-        const demoEmail = 'demo@smartbytes.com';
-        const demoPass = 'demo123456';
 
         try {
-            const { error } = await supabase.auth.signInWithPassword({ email: demoEmail, password: demoPass });
-            if (error) {
-                if (error.message.includes("Invalid login credentials")) {
-                    const { error: regError } = await supabase.auth.signUp({
-                        email: demoEmail,
-                        password: demoPass,
-                        options: { data: { full_name: 'Usuario Demo' } }
-                    });
-                    if (regError) throw regError;
-                    // Try login again after register
-                    await supabase.auth.signInWithPassword({ email: demoEmail, password: demoPass });
-                } else {
-                    throw error;
+            // Activar modo demo local sin Supabase
+            localStorage.setItem('demoMode', 'true');
+            localStorage.setItem('demoStartTime', new Date().toISOString());
+
+            // Crear sesión demo ficticia
+            const demoSession = {
+                user: {
+                    id: 'demo-user',
+                    email: 'demo@smartbytes.com',
+                    user_metadata: { full_name: 'Usuario Demo' }
                 }
-            }
+            };
+
+            // Guardar en sessionStorage para que persista durante la sesión
+            sessionStorage.setItem('demoSession', JSON.stringify(demoSession));
+
+            // Recargar para que App.tsx detecte el modo demo
+            window.location.reload();
         } catch (err: any) {
-            console.error("Demo Auth Error:", err);
-            setError("Error en modo demo: " + err.message);
-        } finally {
+            console.error("Demo Mode Error:", err);
+            setError("Error activando modo demo");
             setLoading(false);
         }
     };
