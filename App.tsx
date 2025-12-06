@@ -68,6 +68,8 @@ const INITIAL_PHYSICAL_ASSETS: PhysicalAsset[] = [
 const INITIAL_RATES: ExchangeRates = {
   usd_bcv: 45.50,
   eur_bcv: 49.20,
+  usd_binance_buy: 46.50,
+  usd_binance_sell: 47.70,
   usd_binance: 47.10,
   lastUpdated: new Date().toISOString()
 };
@@ -139,7 +141,12 @@ function App() {
             ...prev,
             usd_bcv: response.data!.usd_bcv,
             eur_bcv: response.data!.eur_bcv,
-            usd_binance: response.data!.usd_binance || prev.usd_binance,
+            usd_binance_buy: response.data!.usd_binance_buy,
+            usd_binance_sell: response.data!.usd_binance_sell,
+            // Calcular promedio para compatibilidad
+            usd_binance: response.data!.usd_binance_buy && response.data!.usd_binance_sell
+              ? (response.data!.usd_binance_buy + response.data!.usd_binance_sell) / 2
+              : prev.usd_binance,
             lastUpdated: response.data!.lastUpdated
           }));
           setBackendConnected(true);
@@ -607,7 +614,7 @@ function App() {
           </div>
 
           {/* Tasas Dashboard */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 rates-dashboard">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-2 rates-dashboard">
             {/* Dolar BCV */}
             <div className="bg-blue-800 dark:bg-blue-900 p-2 rounded-lg border border-blue-700">
               <div className="text-[10px] text-blue-300 uppercase font-bold">Dólar BCV</div>
@@ -628,13 +635,23 @@ function App() {
                 </div>
               </div>
             </div>
-            {/* Binance */}
-            <div className="bg-gray-800 dark:bg-gray-800 p-2 rounded-lg border border-gray-700">
-              <div className="text-[10px] text-yellow-500 uppercase font-bold">Binance USDT</div>
+            {/* Binance Buy */}
+            <div className="bg-green-800 dark:bg-green-900 p-2 rounded-lg border border-green-700">
+              <div className="text-[10px] text-green-300 uppercase font-bold">Binance Buy</div>
               <div className="flex items-center gap-1">
-                <span className="text-xs text-gray-400">Bs.</span>
+                <span className="text-xs text-green-400">Bs.</span>
                 <div className="w-full text-white font-mono font-bold text-sm">
-                  {rates.usd_binance.toFixed(2)}
+                  {rates.usd_binance_buy?.toFixed(2) || '--'}
+                </div>
+              </div>
+            </div>
+            {/* Binance Sell */}
+            <div className="bg-red-800 dark:bg-red-900 p-2 rounded-lg border border-red-700">
+              <div className="text-[10px] text-red-300 uppercase font-bold">Binance Sell</div>
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-red-400">Bs.</span>
+                <div className="w-full text-white font-mono font-bold text-sm">
+                  {rates.usd_binance_sell?.toFixed(2) || '--'}
                 </div>
               </div>
             </div>

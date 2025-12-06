@@ -623,7 +623,10 @@ function App() {
     </Card>
   );
 
-  if (!session) return <AuthModal darkMode={darkMode} toggleDarkMode={() => setDarkMode(!darkMode)} />;
+  // Check if user has skipped authentication
+  const hasSkippedAuth = localStorage.getItem('skipAuth') === 'true';
+
+  if (!session && !hasSkippedAuth) return <AuthModal darkMode={darkMode} toggleDarkMode={() => setDarkMode(!darkMode)} />;
 
   if (isLoading) return <div className="min-h-screen bg-gray-100 dark:bg-gray-900 flex flex-col items-center justify-center"><RefreshCw className="animate-spin text-blue-600 mb-4" size={48} /><p className="text-gray-600 dark:text-gray-300">Cargando...</p></div>;
 

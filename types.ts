@@ -54,6 +54,8 @@ export interface ShoppingItem {
 export interface ExchangeRates {
   usd_bcv: number;
   eur_bcv: number;
-  usd_binance: number;
+  usd_binance_buy?: number;
+  usd_binance_sell?: number;
+  usd_binance?: number; // Deprecated, mantener para compatibilidad
   lastUpdated: string;
 }
