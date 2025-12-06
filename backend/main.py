@@ -51,6 +51,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.get("/", tags=["Info"])
+def read_root():
+    return {"status": "online", "message": "Smart Bytes Financial Backend is running", "endpoints": ["/tasas", "/api/rates", "/docs"]}
+
 # --- Funciones de Scraping y Lógica de Negocio ---
 
 def scrape_bcv_rates():

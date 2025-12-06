@@ -69,10 +69,15 @@ export interface ShoppingItem {
 
 export interface ExchangeRates {
   usd_bcv: number;
-  eur_bcv: number;
-  usd_binance_buy: number;
-  usd_binance_sell: number;
-  lastUpdated: string;
+  eur_bcv?: number;
+  eur_usd?: number; // Alias o nuevo nombre
+  cop_usd?: number; // Nueva moneda
+  usd_binance_buy?: number;
+  binance_buy?: number; // Alias
+  usd_binance_sell?: number;
+  binance_sell?: number; // Alias
+  lastUpdated?: string; // Legacy
+  last_updated?: string; // DB column
 }
 
 export interface UserProfile {

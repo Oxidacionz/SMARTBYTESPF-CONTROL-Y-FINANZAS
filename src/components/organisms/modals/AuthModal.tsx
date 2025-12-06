@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { supabase } from '../../../supabaseClient';
 import { Button } from '../../atoms/Button';
@@ -114,13 +113,22 @@ export const AuthModal: React.FC<AuthModalProps> = ({ darkMode, toggleDarkMode }
         }
     };
 
+    const [triggerEffect, setTriggerEffect] = useState(false);
+
+    const handleLogoClick = () => {
+        setTriggerEffect(true);
+        setTimeout(() => setTriggerEffect(false), 500);
+    };
+
+    // ... (rest of functions)
+
     return (
         <div className="fixed inset-0 bg-gradient-to-br from-slate-900 via-blue-900 to-slate-800 backdrop-blur-md flex items-center justify-center z-[100] p-4 transition-colors">
             <div className="relative w-full max-w-md">
                 {/* Efecto de brillo animado en el borde */}
-                <div className="absolute -inset-1 bg-gradient-to-r from-amber-600 via-amber-400 to-amber-600 rounded-2xl opacity-75 blur animate-pulse"></div>
+                <div className={`absolute -inset-1 bg-gradient-to-r from-amber-600 via-amber-400 to-amber-600 rounded-2xl opacity-75 blur ${triggerEffect ? 'opacity-100 blur-md duration-75' : 'animate-pulse transition-all duration-1000'}`}></div>
 
-                <div className="relative bg-gradient-to-br from-slate-800 via-slate-700 to-slate-900 rounded-2xl shadow-2xl overflow-hidden border-4 border-amber-500/60 flex flex-col max-h-[90vh] shadow-amber-900/50">
+                <div className={`relative bg-gradient-to-br from-slate-800 via-slate-700 to-slate-900 rounded-2xl shadow-2xl overflow-hidden border-4 flex flex-col max-h-[90vh] shadow-amber-900/50 transition-all duration-300 ${triggerEffect ? 'border-amber-300 shadow-[0_0_50px_rgba(251,191,36,0.5)] scale-[1.02]' : 'border-amber-500/60'}`}>
 
                     {/* Efecto de brillo metálico en las esquinas */}
                     <div className="absolute top-0 left-0 w-32 h-32 bg-gradient-to-br from-amber-400/20 to-transparent rounded-tl-2xl pointer-events-none z-10"></div>
@@ -129,16 +137,36 @@ export const AuthModal: React.FC<AuthModalProps> = ({ darkMode, toggleDarkMode }
 
                     <div className="bg-gradient-to-br from-slate-700 via-slate-600 to-slate-800 p-4 text-center relative shrink-0 border-b-2 border-amber-500/30">
                         <div className="flex justify-center mb-2">
-                            <div className="relative">
+                            <div
+                                className={`relative cursor-pointer transition-transform duration-200 group ${triggerEffect ? 'scale-110' : 'hover:scale-105 active:scale-95'}`}
+                                onClick={handleLogoClick}
+                                title="SMART BYTES"
+                            >
                                 {/* Anillos metálicos con efecto de brillo */}
-                                <div className="absolute inset-0 rounded-full ring-4 ring-slate-300/60 animate-pulse"></div>
+                                <div className="absolute inset-0 rounded-full ring-4 ring-slate-300/60 animate-pulse group-hover:ring-amber-400 transition-colors duration-500"></div>
                                 <div className="absolute inset-0 rounded-full ring-2 ring-slate-100/40"></div>
 
-                                <img src="/logo.jpg" alt="SMART BYTES.PF Logo" className="relative w-20 h-20 object-contain rounded-full shadow-2xl ring-4 ring-slate-400/90" />
+                                <img
+                                    src={`${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/assets/logo.jpg`}
+                                    onError={(e) => {
+                                        // Si falla Supabase (bucket no creado o archivo no existe),
+                                        // intentamos cargar el local como respaldo.
+                                        const target = e.currentTarget;
+                                        if (target.src.includes('storage')) {
+                                            target.src = `${import.meta.env.BASE_URL}logo.jpg`;
+                                        } else {
+                                            // Si también falla el local, placeholder final
+                                            target.onerror = null;
+                                            target.src = "https://ui-avatars.com/api/?name=SB&background=f59e0b&color=fff&size=200";
+                                        }
+                                    }}
+                                    alt="SMART BYTES.PF Logo"
+                                    className="relative w-20 h-20 object-contain rounded-full shadow-2xl ring-4 ring-slate-400/90 group-hover:ring-amber-300 transition-all duration-500"
+                                />
 
                                 {/* Efecto de brillo metálico que se mueve */}
                                 <div className="absolute inset-0 rounded-full bg-gradient-to-br from-white/30 via-transparent to-slate-300/20 animate-pulse"></div>
-                                <div className="absolute top-0 left-0 w-full h-full rounded-full bg-gradient-to-r from-transparent via-white/40 to-transparent opacity-0 animate-shimmer-slow"></div>
+                                <div className="absolute top-0 left-0 w-full h-full rounded-full bg-gradient-to-r from-transparent via-white/40 to-transparent opacity-0 animate-shimmer-slow group-hover:opacity-100 transition-opacity"></div>
                             </div>
                         </div>
                         <h1 className="text-xl font-bold bg-gradient-to-r from-amber-200 via-amber-100 to-amber-300 bg-clip-text text-transparent mb-1 tracking-wide">SMART BYTES.PF</h1>

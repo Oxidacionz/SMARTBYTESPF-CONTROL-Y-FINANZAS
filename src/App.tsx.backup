@@ -106,29 +106,59 @@ function App() {
   useEffect(() => {
     // 1. Initial Load (Page Refresh)
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (session && session.user.id !== lastLoadedUserId.current) {
-        lastLoadedUserId.current = session.user.id;
-        loadUserData(session.user.id);
-      } else if (!session) {
-        setIsLoading(false);
+      if (session) {
+        setSession(session);
+        if (session.user.id !== lastLoadedUserId.current) {
+          lastLoadedUserId.current = session.user.id;
+          loadUserData(session.user.id);
+        }
+      } else {
+        // CHECK FOR DEMO SESSION
+        const demoSessionStr = sessionStorage.getItem('demoSession');
+        if (demoSessionStr) {
+          try {
+            const demoSession = JSON.parse(demoSessionStr);
+            setSession(demoSession);
+            if (demoSession.user.id !== lastLoadedUserId.current) {
+              lastLoadedUserId.current = demoSession.user.id;
+              loadUserData(demoSession.user.id);
+            }
+          } catch (e) {
+            console.error("Invalid demo session");
+            setIsLoading(false);
+          }
+        } else {
+          setIsLoading(false);
+        }
       }
     });
 
     // 2. Auth State Listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      // PROTEGER MODO DEMO: Si estamos en modo demo, ignorar actualizaciones vacías de Supabase
+      const isDemoMode = sessionStorage.getItem('demoSession');
+
+      if (isDemoMode && !session) {
+        // Si estamos en demo y Supabase dice "no hay sesión", mantenemos la sesión demo
+        // No hacemos nada, dejamos que el useEffect inicial maneje la sesión demo
+        return;
+      }
+
       setSession(session);
 
       if (event === 'SIGNED_OUT') {
-        lastLoadedUserId.current = null;
-        // Clear local data immediately
-        setItems([]);
-        setPhysicalAssets([]);
-        setManualEvents([]);
-        setShoppingHistory([]);
-        setDirectory([]);
-        setUserProfile(null);
-        setActiveTab('dashboard');
+        // Verificar doblemente si realmente queremos salir (no es demo)
+        if (!isDemoMode) {
+          lastLoadedUserId.current = null;
+          // Clear local data immediately
+          setItems([]);
+          setPhysicalAssets([]);
+          setManualEvents([]);
+          setShoppingHistory([]);
+          setDirectory([]);
+          setUserProfile(null);
+          setActiveTab('dashboard');
+        }
       } else if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
         // Only load data if user changed or hasn't been loaded
         if (session && session.user.id !== lastLoadedUserId.current) {
@@ -148,6 +178,18 @@ function App() {
     setSyncStatus('syncing');
 
     try {
+      if (userId === 'demo-user') {
+        // MODO DEMO: Cargar datos locales ficticios o vacíos
+        setUserProfile({ id: 'demo-user', email: 'demo@smartbytes.com', full_name: 'Usuario Demo' });
+        setItems([
+          { id: '1', name: 'Sueldo Demo', amount: 300, currency: 'USD', category: 'Income', type: 'asset', isMonthly: true },
+          { id: '2', name: 'Alquiler Demo', amount: 120, currency: 'USD', category: 'Expense', type: 'liability', isMonthly: true }
+        ]);
+        setSyncStatus('synced');
+        setIsLoading(false);
+        return;
+      }
+
       // 1. Load Profile (Safe)
       try {
         const { data: profile } = await supabase.from('profiles').select('*').eq('id', userId).single();
