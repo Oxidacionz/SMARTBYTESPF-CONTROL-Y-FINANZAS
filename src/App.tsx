@@ -32,6 +32,7 @@ import { FinancialPlanDashboard } from './components/organisms/FinancialPlanDash
 import { dbItems, dbAssets, dbEvents, dbShopping, dbRates, dbDirectory, dbGoals, dbProfile, recommendationEngine } from './services/db';
 import { supabase } from './supabaseClient';
 import { useExchangeRates } from './hooks/useExchangeRates';
+import { MoneyMath } from './utils/moneyMath';
 
 import {
   Calendar, Plus, Trash2, Edit, Box, TrendingUp, RefreshCw, UploadCloud, Download, Clock, Settings, ShoppingBag, PieChart, ChevronUp
@@ -339,9 +340,9 @@ function App() {
 
   const toUSD = (item: { amount: number, currency: Currency, customExchangeRate?: number }) => {
     if (item.currency === 'USD') return item.amount;
-    if (item.currency === 'EUR') return item.amount * 1.08;
+    if (item.currency === 'EUR') return MoneyMath.multiply(item.amount, 1.08);
     const rate = item.customExchangeRate || rates.usd_bcv;
-    return rate > 0 ? item.amount / rate : 0;
+    return MoneyMath.convert(item.amount, rate);
   };
 
   const formatMoney = (amount: number, currency: string) => {
@@ -350,13 +351,16 @@ function App() {
     return `Bs. ${amount.toLocaleString('es-VE', { minimumFractionDigits: 2 })}`;
   };
 
-  const totalAssets = items.filter(i => i.type === 'asset').reduce((acc, i) => acc + toUSD(i), 0);
-  const totalSavings = items.filter(i => i.type === 'asset' && i.category === 'Savings').reduce((acc, i) => acc + toUSD(i), 0);
-  const liquidAssets = totalAssets - totalSavings;
+  const totalAssets = MoneyMath.sum(items.filter(i => i.type === 'asset').map(i => toUSD(i)));
+  const totalSavings = MoneyMath.sum(items.filter(i => i.type === 'asset' && i.category === 'Savings').map(i => toUSD(i)));
+  const liquidAssets = MoneyMath.subtract(totalAssets, totalSavings);
 
-  const totalLiabilities = items.filter(i => i.type === 'liability').reduce((acc, i) => acc + toUSD(i), 0);
-  const monthlyExpenses = items.filter(i => i.type === 'liability' && i.isMonthly).reduce((acc, i) => acc + toUSD(i), 0);
-  const totalPatrimony = (totalAssets - totalLiabilities) + physicalAssets.reduce((acc, i) => acc + toUSD({ amount: i.estimatedValue, currency: i.currency }), 0);
+  const totalLiabilities = MoneyMath.sum(items.filter(i => i.type === 'liability').map(i => toUSD(i)));
+  const monthlyExpenses = MoneyMath.sum(items.filter(i => i.type === 'liability' && i.isMonthly).map(i => toUSD(i)));
+
+  const assetsValue = MoneyMath.subtract(totalAssets, totalLiabilities);
+  const physicalValue = MoneyMath.sum(physicalAssets.map(i => toUSD({ amount: i.estimatedValue, currency: i.currency })));
+  const totalPatrimony = MoneyMath.add(assetsValue, physicalValue);
 
   // CRUD Handlers with SAFE UUID
   const handleAddItem = async (newItem: Omit<FinancialItem, 'id'>) => {

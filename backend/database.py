@@ -224,6 +224,13 @@ def save_rates(usd_bcv: float, eur_bcv: float, usd_binance_buy: float = None, us
     
     # Fallback to SQLite only
     print("⚠️  Using SQLite fallback (Supabase not configured)")
+    
+    # Check if we are in a production-like environment (e.g. Railway)
+    # If so, this is critical because SQLite data is ephemeral there.
+    if os.getenv("RAILWAY_ENVIRONMENT") or os.getenv("item_env") == "production":
+        print("🚨 CRITICAL WARNING: Running in Production/Railway without Supabase credentials!")
+        print("   Data saved to SQLite will be LOST upon deployment or restart.")
+    
     save_rates_to_sqlite(usd_bcv, eur_bcv, usd_binance_buy, usd_binance_sell)
 
 def get_latest_rates():

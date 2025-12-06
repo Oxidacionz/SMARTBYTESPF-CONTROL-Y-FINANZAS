@@ -32,6 +32,7 @@ La aplicación demuestra una base sólida en seguridad al utilizar Supabase para
 - [x] Eliminar código redundante y estados antiguos.
 - [x] Corrección de estructura del archivo tras corrupción accidental.
 
-### Fase 4: Integridad de Datos e Infraestructura (Pendiente - 0%)
-- [ ] Backend: Deshabilitar fallback a SQLite en producción (o añadir warning visible).
-- [ ] Frontend: Migración gradual a `decimal.js` para cálculos monetarios críticos.
+### Fase 4: Integridad de Datos e Infraestructura (En Progreso - 50%)
+- [x] Backend: Deshabilitar fallback a SQLite en producción (o añadir warning visible).
+- [x] Frontend: Migración gradual a `decimal.js` para cálculos monetarios críticos (Tablero Principal completado).
+- [ ] Frontend: Extender `MoneyMath` a reportes y proyecciones.
