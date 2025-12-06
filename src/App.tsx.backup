@@ -657,56 +657,67 @@ function App() {
               <Button key={tab.id} size="sm" variant={activeTab === tab.id ? 'primary' : 'secondary'} onClick={() => setActiveTab(tab.id as any)} className="h-8 px-3 text-xs">{tab.label}</Button>
             ))}
 
-            {/* Botón Distribución */}
-            {activeTab === 'dashboard' && (
-              <Button variant="secondary" size="sm" onClick={() => setShowDistributionChart(!showDistributionChart)} icon={showDistributionChart ? <ChevronUp size={14} /> : <PieChart size={14} />} className="whitespace-nowrap bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/30 dark:to-pink-900/30 border border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/50 h-8 px-3 text-xs">{showDistributionChart ? 'Ocultar' : 'Ver'} Distribución</Button>
-            )}
-
             {/* Gastos Hormiga */}
             <Button variant="secondary" size="sm" onClick={() => setShowShoppingModal(true)} icon={<ShoppingBag size={14} />} className="whitespace-nowrap bg-white dark:bg-gray-800 border border-orange-200 dark:border-orange-800 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/30 h-8 px-3 text-xs">Gastos Hormiga</Button>
 
             {/* Agregar */}
             <Button size="sm" onClick={() => { setEditingItem(null); setShowAddModal(true); }} icon={<Plus size={16} />} className="bg-blue-600 text-white shadow-md hover:bg-blue-700 whitespace-nowrap h-8 px-3 text-xs">+ Agregar</Button>
-
-            {/* Reportes */}
-            <div className="relative">
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setShowReportsMenu(!showReportsMenu)}
-                icon={<Download size={14} />}
-                className="whitespace-nowrap bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 h-8 px-3 text-xs"
-              >
-                Reportes
-              </Button>
-
-              {showReportsMenu && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setShowReportsMenu(false)}></div>
-                  <div className="absolute right-0 mt-1 bg-gradient-to-br from-slate-800 to-slate-900 border-2 border-slate-600/50 rounded-lg shadow-2xl z-50 min-w-[200px]">
-                    <button
-                      onClick={() => { setShowUploadModal(true); setShowReportsMenu(false); }}
-                      className="w-full text-left px-4 py-3 text-sm text-slate-300 hover:bg-slate-700/50 hover:text-amber-400 transition-colors flex items-center gap-2 rounded-t-lg"
-                    >
-                      <UploadCloud size={14} />
-                      Subir Reporte
-                    </button>
-                    <button
-                      onClick={() => { exportToExcel(items, physicalAssets, shoppingHistory); setShowReportsMenu(false); }}
-                      className="w-full text-left px-4 py-3 text-sm text-slate-300 hover:bg-slate-700/50 hover:text-amber-400 transition-colors flex items-center gap-2 rounded-b-lg"
-                    >
-                      <Download size={14} />
-                      Descargar Reporte
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
           </div>
         }
         mainContent={
           <>
-            {activeTab === 'dashboard' && <Dashboard items={items} exchangeRate={rates.usd_bcv} toUSD={toUSD} formatMoney={formatMoney} onSettleDebt={(item) => { setSettlingDebtItem(item); setShowDebtModal(true); }} onOpenShopping={() => setShowShoppingModal(true)} showChart={showDistributionChart} />}
+            {activeTab === 'dashboard' && (
+              <>
+                {/* Botones de Distribución y Reportes en Resumen */}
+                <div className="flex flex-wrap gap-2 mb-4">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setShowDistributionChart(!showDistributionChart)}
+                    icon={showDistributionChart ? <ChevronUp size={14} /> : <PieChart size={14} />}
+                    className="whitespace-nowrap bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/30 dark:to-pink-900/30 border border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/50 h-8 px-3 text-xs"
+                  >
+                    {showDistributionChart ? 'Ocultar' : 'Ver'} Distribución
+                  </Button>
+
+                  <div className="relative">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setShowReportsMenu(!showReportsMenu)}
+                      icon={<Download size={14} />}
+                      className="whitespace-nowrap bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 h-8 px-3 text-xs"
+                    >
+                      Reportes
+                    </Button>
+
+                    {showReportsMenu && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setShowReportsMenu(false)}></div>
+                        <div className="absolute right-0 mt-1 bg-gradient-to-br from-slate-800 to-slate-900 border-2 border-slate-600/50 rounded-lg shadow-2xl z-50 min-w-[200px]">
+                          <button
+                            onClick={() => { setShowUploadModal(true); setShowReportsMenu(false); }}
+                            className="w-full text-left px-4 py-3 text-sm text-slate-300 hover:bg-slate-700/50 hover:text-amber-400 transition-colors flex items-center gap-2 rounded-t-lg"
+                          >
+                            <UploadCloud size={14} />
+                            Subir Reporte
+                          </button>
+                          <button
+                            onClick={() => { exportToExcel(items, physicalAssets, shoppingHistory); setShowReportsMenu(false); }}
+                            className="w-full text-left px-4 py-3 text-sm text-slate-300 hover:bg-slate-700/50 hover:text-amber-400 transition-colors flex items-center gap-2 rounded-b-lg"
+                          >
+                            <Download size={14} />
+                            Descargar Reporte
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                <Dashboard items={items} exchangeRate={rates.usd_bcv} toUSD={toUSD} formatMoney={formatMoney} onSettleDebt={(item) => { setSettlingDebtItem(item); setShowDebtModal(true); }} onOpenShopping={() => setShowShoppingModal(true)} showChart={showDistributionChart} />
+              </>
+            )}
             {activeTab === 'assets' && renderList('asset')}
             {activeTab === 'liabilities' && renderList('liability')}
             {activeTab === 'goals' && (

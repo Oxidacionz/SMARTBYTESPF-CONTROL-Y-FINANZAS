@@ -36,7 +36,7 @@ export const DirectoryWidget: React.FC<DirectoryWidgetProps> = ({ directory, ite
   }, [directory, items, toUSD]);
 
   return (
-    <Card className="p-0 overflow-hidden border-none shadow-md">
+    <Card className="p-0 overflow-hidden border-2 border-yellow-500 dark:border-yellow-600 shadow-md shadow-yellow-500/20">
       <div
         className="bg-slate-800 dark:bg-slate-900 p-4 text-white flex justify-between items-center cursor-pointer hover:bg-slate-700 transition-colors"
         onClick={() => setIsOpen(!isOpen)}
