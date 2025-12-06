@@ -1,6 +1,7 @@
 
 import { supabase } from '../supabaseClient';
 import { FinancialGoal } from '../types';
+import { MoneyMath } from '../utils/moneyMath';
 
 // Helper de seguridad: Obtener usuario autenticado o fallar
 const getAuthenticatedUser = async () => {
@@ -93,7 +94,7 @@ export const dbGoals = {
         const goal = await dbGoals.getById(id);
         if (!goal) throw new Error('Meta no encontrada');
 
-        const newAmount = goal.current_amount + amount;
+        const newAmount = MoneyMath.add(goal.current_amount, amount);
         await dbGoals.updateProgress(id, newAmount);
     },
 
@@ -111,7 +112,8 @@ export const dbGoals = {
     // Calcular progreso de una meta
     calculateProgress: (goal: FinancialGoal): number => {
         if (goal.target_amount === 0) return 0;
-        const progress = (goal.current_amount / goal.target_amount) * 100;
+        const ratio = MoneyMath.divide(goal.current_amount, goal.target_amount);
+        const progress = MoneyMath.multiply(ratio, 100);
         return Math.min(progress, 100);
     },
 
@@ -130,17 +132,17 @@ export const dbGoals = {
         const daysRemaining = dbGoals.getDaysRemaining(goal);
         if (!daysRemaining || daysRemaining <= 0) return null;
 
-        const amountNeeded = goal.target_amount - goal.current_amount;
+        const amountNeeded = MoneyMath.subtract(goal.target_amount, goal.current_amount);
         if (amountNeeded <= 0) return 0;
 
         // Calcular contribución diaria necesaria
-        const dailyContribution = amountNeeded / daysRemaining;
+        const dailyContribution = MoneyMath.divide(amountNeeded, daysRemaining);
 
         // Convertir a frecuencia configurada
         if (goal.contribution_frequency === 'weekly') {
-            return dailyContribution * 7;
+            return MoneyMath.multiply(dailyContribution, 7);
         } else if (goal.contribution_frequency === 'monthly') {
-            return dailyContribution * 30;
+            return MoneyMath.multiply(dailyContribution, 30);
         }
 
         return dailyContribution;

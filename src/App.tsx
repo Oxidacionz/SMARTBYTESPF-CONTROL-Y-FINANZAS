@@ -414,7 +414,7 @@ function App() {
 
   const handleDebtSettlement = async (amount: number, method: string, details: any) => {
     if (!settlingDebtItem || !session) return;
-    let newDebtAmount = Math.max(0, settlingDebtItem.amount - amount);
+    let newDebtAmount = Math.max(0, MoneyMath.subtract(settlingDebtItem.amount, amount));
     const updatedDebtItem = { ...settlingDebtItem, amount: newDebtAmount, note: details.note };
 
     const updatedItemsState = items.map(i => i.id === settlingDebtItem.id ? updatedDebtItem : i);
@@ -426,7 +426,7 @@ function App() {
       if (method === 'money' && details.accountId) {
         const account = items.find(i => i.id === details.accountId);
         if (account) {
-          const updatedAccount = { ...account, amount: account.type === 'asset' ? account.amount - amount : account.amount + amount };
+          const updatedAccount = { ...account, amount: account.type === 'asset' ? MoneyMath.subtract(account.amount, amount) : MoneyMath.add(account.amount, amount) };
           setItems(prev => prev.map(i => i.id === account.id ? updatedAccount : i));
           await dbItems.update(updatedAccount);
         }
@@ -579,7 +579,7 @@ function App() {
     if (!liquidatingAsset) return;
     const account = items.find(i => i.id === targetAccountId);
     if (account) {
-      const updatedAccount = { ...account, amount: account.amount + salePrice };
+      const updatedAccount = { ...account, amount: MoneyMath.add(account.amount, salePrice) };
       setItems(prev => prev.map(i => i.id === targetAccountId ? updatedAccount : i));
       try { await dbItems.update(updatedAccount); } catch (e) { console.error(e); }
     }
