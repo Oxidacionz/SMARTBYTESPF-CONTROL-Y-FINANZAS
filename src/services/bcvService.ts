@@ -69,6 +69,50 @@ export const fetchBCVRates = async (): Promise<FetchBCVRatesResponse> => {
 };
 
 /**
+ * Force backend to scrape and update rates immediately
+ */
+export const forceRefreshRates = async (): Promise<FetchBCVRatesResponse> => {
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/rates/force-refresh`, {
+            method: 'POST'
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const apiData: RatesApiResponse = await response.json();
+
+        if (!apiData.success || !apiData.data) {
+            return {
+                success: false,
+                error: 'Invalid response from server'
+            };
+        }
+
+        const rates: ExchangeRates = {
+            usd_bcv: apiData.data.usd_bcv,
+            eur_bcv: apiData.data.eur_bcv,
+            usd_binance_buy: apiData.data.usd_binance_buy || 0,
+            usd_binance_sell: apiData.data.usd_binance_sell || 0,
+            lastUpdated: apiData.data.timestamp
+        };
+
+        return {
+            success: true,
+            data: rates
+        };
+
+    } catch (error) {
+        console.error('Error forcing rates update:', error);
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error'
+        };
+    }
+};
+
+/**
  * Legacy service object for backward compatibility
  * @deprecated Use fetchBCVRates instead
  */

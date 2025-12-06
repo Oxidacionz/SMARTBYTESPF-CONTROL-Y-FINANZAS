@@ -448,6 +448,23 @@ async def get_promedios_p2p():
         anuncios_contabilizados_venta=len(precios_venta)
     )
 
+@app.post("/api/rates/force-refresh", summary="Forzar actualización de tasas", tags=["Tasas"])
+async def force_refresh_rates():
+    """
+    Fuerza la actualización de tasas (BCV y Binance) inmediatamente.
+    """
+    try:
+        # Ejecutar la actualización (Scrape BCV & Binance y guardar en BD)
+        await update_rates_job()
+        
+        # Devolver las tasas actualizadas
+        return await get_rates_api()
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al forzar actualización: {str(e)}"
+        )
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

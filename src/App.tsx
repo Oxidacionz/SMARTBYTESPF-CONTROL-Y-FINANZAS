@@ -31,7 +31,7 @@ import { FinancialPlanDashboard } from './components/organisms/FinancialPlanDash
 
 // DB Services
 import { dbItems, dbAssets, dbEvents, dbShopping, dbRates, dbDirectory, dbGoals, dbProfile, recommendationEngine } from './services/db';
-import { bcvService } from './services/bcvService';
+import { bcvService, forceRefreshRates } from './services/bcvService';
 import { supabase } from './supabaseClient';
 
 import {
@@ -70,6 +70,7 @@ function App() {
 
   const [isLoading, setIsLoading] = useState(false);
   const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'error'>('synced');
+  const [isRatesUpdating, setIsRatesUpdating] = useState(false);
 
   const [activeTab, setActiveTab] = useState<'dashboard' | 'assets' | 'liabilities' | 'inventory' | 'goals' | 'advisor'>('dashboard');
   const [darkMode, setDarkMode] = useState(true);
@@ -291,6 +292,28 @@ function App() {
     return [...manualEvents, ...recurring].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
   }, [items, manualEvents]);
 
+  // Automatic Rates Sync (Every 5 minutes)
+  useEffect(() => {
+    const fetchLatestRates = async () => {
+      try {
+        const cloudRates = await dbRates.get();
+        if (cloudRates) {
+          setRates(prevRates => ({
+            ...prevRates,
+            ...cloudRates
+          }));
+          console.log("🔄 Auto-sync: Tasas actualizadas desde Supabase");
+        }
+      } catch (e) {
+        console.error("Auto-sync rates error:", e);
+      }
+    };
+
+    fetchLatestRates(); // Initial check
+    const intervalId = setInterval(fetchLatestRates, 5 * 60 * 1000); // 5 minutes
+    return () => clearInterval(intervalId);
+  }, []);
+
   // Tutorial Effect
   useEffect(() => {
     const hasSeenTutorial = localStorage.getItem('hasSeenTutorial');
@@ -369,6 +392,69 @@ function App() {
     } catch (e) {
       console.warn("Rate update failed on server", e);
       setSyncStatus('synced');
+    }
+  };
+
+  const handleForceRatesUpdate = async () => {
+    setIsRatesUpdating(true);
+    try {
+      console.log("🔄 Buscando tasas actualizadas en Supabase...");
+
+      // 1. Intentar obtener datos directos de Supabase (donde Railway escribe)
+      const supabaseData = await dbRates.get();
+
+      if (supabaseData) {
+        console.log("✅ Datos encontrados en Supabase:", supabaseData);
+
+        // Actualizar estado local
+        setRates(prev => ({
+          ...prev,
+          usd_bcv: supabaseData.usd_bcv,
+          eur_bcv: supabaseData.eur_bcv,
+          usd_binance_buy: supabaseData.usd_binance_buy || 0,
+          usd_binance_sell: supabaseData.usd_binance_sell || 0,
+          lastUpdated: supabaseData.lastUpdated
+        }));
+
+        setSyncStatus('synced');
+        setNotifications(prev => [{
+          id: `rates-supa-${Date.now()}`,
+          title: 'Tasas Sincronizadas (Nube)',
+          message: 'Se han obtenido las tasas más recientes desde la base de datos.',
+          type: 'success',
+          date: 'Ahora',
+          read: false
+        }, ...prev]);
+
+        setIsRatesUpdating(false);
+        return; // Éxito con Supabase
+      }
+
+      console.warn("⚠️ No se encontraron tasas en Supabase. Intentando forzar scrape local...");
+
+      // 2. Fallback: Forzar scrape en backend local si Supabase falla
+      const result = await forceRefreshRates();
+      if (result.success && result.data) {
+        setRates(result.data);
+        await dbRates.update(result.data);
+        setSyncStatus('synced');
+        setNotifications(prev => [{
+          id: `rates-updated-local-${Date.now()}`,
+          title: 'Tasas Actualizadas (Local)',
+          message: 'Se forzó una actualización local exitosa.',
+          type: 'success',
+          date: 'Ahora',
+          read: false
+        }, ...prev]);
+      } else {
+        console.warn("Failed to force update rates:", result.error);
+        setSyncStatus('error');
+      }
+    } catch (e) {
+      console.error("Error forcing rates update:", e);
+      setSyncStatus('error');
+    } finally {
+      setIsRatesUpdating(false);
     }
   };
 
@@ -675,7 +761,7 @@ function App() {
   return (
     <>
       <MainLayout
-        header={<Header darkMode={darkMode} toggleDarkMode={() => setDarkMode(!darkMode)} rates={rates} setRates={handleRateUpdate} syncStatus={syncStatus} onRefresh={() => loadUserData(session.user.id)} userProfile={userProfile} onOpenProfile={() => setShowProfileModal(true)} onOpenTutorial={() => setShowTutorial(true)} onOpenNotifications={() => setShowNotifications(!showNotifications)} unreadCount={notifications.filter(n => !n.read).length} />}
+        header={<Header darkMode={darkMode} toggleDarkMode={() => setDarkMode(!darkMode)} rates={rates} setRates={handleRateUpdate} syncStatus={syncStatus} onRefresh={() => loadUserData(session.user.id)} userProfile={userProfile} onOpenProfile={() => setShowProfileModal(true)} onOpenTutorial={() => setShowTutorial(true)} onOpenNotifications={() => setShowNotifications(!showNotifications)} unreadCount={notifications.filter(n => !n.read).length} onForceRefresh={handleForceRatesUpdate} isRefreshing={isRatesUpdating} />}
         summary={
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             <StatCard label="Liquidez (Disp.)" value={`$${liquidAssets.toFixed(2)}`} subtext="Bancos y Efectivo" colorBorder="border-green-500" valueType="positive" numericValue={liquidAssets} />

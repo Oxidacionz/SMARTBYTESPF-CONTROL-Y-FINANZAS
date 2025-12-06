@@ -158,17 +158,47 @@ export const dbShopping = {
 };
 
 // --- Exchange Rates (Shared Resource) ---
+// --- Exchange Rates (Shared Resource) ---
 export const dbRates = {
   get: async (): Promise<ExchangeRates | null> => {
-    const { data, error } = await supabase.from('exchangeRates').select('*').eq('id', 1).single();
-    if (error) return null;
-    return data;
+    // Intenta leer de la tabla 'exchange_rates' (formato backend/Railway)
+    const RAILWAY_RATES_ID = "00000000-0000-0000-0000-000000000001";
+
+    try {
+      const { data, error } = await supabase
+        .from('exchange_rates')
+        .select('*')
+        .eq('id', RAILWAY_RATES_ID)
+        .single();
+
+      if (data) return data;
+
+      // Fallback: Si no existe, intenta la tabla antigua 'exchangeRates'
+      if (error) {
+        const { data: oldData } = await supabase.from('exchangeRates').select('*').eq('id', 1).single();
+        return oldData || null;
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
   },
   update: async (rates: ExchangeRates) => {
+    const RAILWAY_RATES_ID = "00000000-0000-0000-0000-000000000001";
     try {
       await getAuthenticatedUser();
-      const { error } = await supabase.from('exchangeRates').upsert({ ...rates, id: 1 });
-      if (error) throw error;
+
+      // Actualizar en la tabla principal 'exchange_rates'
+      const { error } = await supabase.from('exchange_rates').upsert({
+        ...rates,
+        id: RAILWAY_RATES_ID,
+        is_global: true
+      });
+
+      if (error) {
+        // Fallback para tabla antigua si la nueva falla (por permisos o existencia)
+        await supabase.from('exchangeRates').upsert({ ...rates, id: 1 });
+      }
     } catch (e) {
       console.warn("No tienes permisos para actualizar la tasa global o no estás logueado.");
       throw e;

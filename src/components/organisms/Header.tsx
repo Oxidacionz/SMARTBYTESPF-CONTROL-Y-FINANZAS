@@ -16,10 +16,12 @@ interface HeaderProps {
   onOpenTutorial: () => void;
   onOpenNotifications: () => void;
   unreadCount: number;
+  onForceRefresh?: () => void;
+  isRefreshing?: boolean;
 }
 
 
-export const Header: React.FC<HeaderProps> = ({ darkMode, toggleDarkMode, rates, setRates, syncStatus, onRefresh, userProfile, onOpenProfile, onOpenTutorial, onOpenNotifications, unreadCount }) => {
+export const Header: React.FC<HeaderProps> = ({ darkMode, toggleDarkMode, rates, setRates, syncStatus, onRefresh, userProfile, onOpenProfile, onOpenTutorial, onOpenNotifications, unreadCount, onForceRefresh, isRefreshing }) => {
   const [isVisible, setIsVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
 
@@ -81,6 +83,20 @@ export const Header: React.FC<HeaderProps> = ({ darkMode, toggleDarkMode, rates,
                 <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-amber-500 rounded-full border-2 border-slate-800 shadow-lg shadow-amber-500/50"></span>
               )}
             </button>
+
+            {onForceRefresh && (
+              <button
+                onClick={onForceRefresh}
+                disabled={isRefreshing}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all border border-cyan-500/50 bg-cyan-900/30 text-cyan-300 hover:bg-cyan-900/50 ${isRefreshing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                title="Forzar actualización de tasas desde BCV/Binance"
+              >
+                <RefreshCw size={12} className={isRefreshing ? 'animate-spin' : ''} />
+                <span className="hidden sm:inline">
+                  {isRefreshing ? 'Actualizando...' : 'Force'}
+                </span>
+              </button>
+            )}
 
             <button
               onClick={onRefresh}

@@ -10,7 +10,7 @@ import { DebtSettlementModal } from './components/DebtSettlementModal';
 import { FinancialAdvisor } from './components/FinancialAdvisor';
 import { Tutorial } from './src/components/Tutorial';
 import { NotificationsPanel } from './src/components/NotificationsPanel';
-import { fetchBCVRates } from './src/services/bcvService';
+import { fetchBCVRates, forceRefreshRates } from './src/services/bcvService';
 import { Notification } from './src/types/notification';
 import {
   Wallet,
@@ -39,7 +39,8 @@ import {
   ArrowRightLeft,
   MessageSquare,
   Bell,
-  HelpCircle
+  HelpCircle,
+  RefreshCw
 } from 'lucide-react';
 
 const INITIAL_DATA: FinancialItem[] = [
@@ -84,6 +85,7 @@ function App() {
   // Backend connection state
   const [backendConnected, setBackendConnected] = useState<boolean>(false);
   const [lastRateUpdate, setLastRateUpdate] = useState<string>('');
+  const [isUpdatingRates, setIsUpdatingRates] = useState<boolean>(false);
 
   // Modals visibility
   const [showAddModal, setShowAddModal] = useState(false);
@@ -171,6 +173,35 @@ function App() {
     // Cleanup interval on unmount
     return () => clearInterval(intervalId);
   }, []);
+
+  const handleForceUpdate = async () => {
+    setIsUpdatingRates(true);
+    try {
+      const response = await forceRefreshRates();
+      if (response.success && response.data) {
+        setRates(prev => ({
+          ...prev,
+          usd_bcv: response.data!.usd_bcv,
+          eur_bcv: response.data!.eur_bcv,
+          usd_binance_buy: response.data!.usd_binance_buy,
+          usd_binance_sell: response.data!.usd_binance_sell,
+          usd_binance: response.data!.usd_binance_buy && response.data!.usd_binance_sell
+            ? (response.data!.usd_binance_buy + response.data!.usd_binance_sell) / 2
+            : prev.usd_binance,
+          lastUpdated: response.data!.lastUpdated
+        }));
+        setBackendConnected(true);
+        setLastRateUpdate(new Date().toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' }));
+        console.log('✅ Tasas actualizadas forzadamente:', response.data);
+      } else {
+        console.warn('⚠️ No se pudieron forzar tasas del backend');
+      }
+    } catch (error) {
+      console.error('❌ Error forzando actualización:', error);
+    } finally {
+      setIsUpdatingRates(false);
+    }
+  };
 
   // Notifications Logic
   useEffect(() => {
@@ -613,64 +644,78 @@ function App() {
             </div>
           </div>
 
+
           {/* Tasas Dashboard */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-2 rates-dashboard">
-            {/* Dolar BCV */}
-            <div className="bg-blue-800 dark:bg-blue-900 p-2 rounded-lg border border-blue-700">
-              <div className="text-[10px] text-blue-300 uppercase font-bold">Dólar BCV</div>
-              <div className="flex items-center gap-1">
-                <span className="text-xs">Bs.</span>
-                <div className="w-full text-white font-mono font-bold text-sm">
-                  {rates.usd_bcv.toFixed(2)}
+          <div className="flex flex-col gap-2">
+            <div className="flex justify-end">
+              <button
+                onClick={handleForceUpdate}
+                disabled={isUpdatingRates}
+                className={`flex items-center gap-1.5 text-xs bg-cyan-600 hover:bg-cyan-500 text-white px-3 py-1 rounded-md shadow-sm transition-all border border-cyan-500 hover:border-cyan-400 ${isUpdatingRates ? 'opacity-70 cursor-not-allowed' : ''}`}
+                title="Fuerza la actualización de tasas desde Railway/Supabase"
+              >
+                <RefreshCw size={12} className={isUpdatingRates ? 'animate-spin' : ''} />
+                {isUpdatingRates ? 'Actualizando...' : 'Force Refresh'}
+              </button>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-2 rates-dashboard">
+              {/* Dolar BCV */}
+              <div className="bg-blue-800 dark:bg-blue-900 p-2 rounded-lg border border-blue-700">
+                <div className="text-[10px] text-blue-300 uppercase font-bold">Dólar BCV</div>
+                <div className="flex items-center gap-1">
+                  <span className="text-xs">Bs.</span>
+                  <div className="w-full text-white font-mono font-bold text-sm">
+                    {rates.usd_bcv.toFixed(2)}
+                  </div>
                 </div>
               </div>
-            </div>
-            {/* Euro BCV */}
-            <div className="bg-blue-800 dark:bg-blue-900 p-2 rounded-lg border border-blue-700">
-              <div className="text-[10px] text-blue-300 uppercase font-bold">Euro BCV</div>
-              <div className="flex items-center gap-1">
-                <span className="text-xs">Bs.</span>
-                <div className="w-full text-white font-mono font-bold text-sm">
-                  {rates.eur_bcv.toFixed(2)}
+              {/* Euro BCV */}
+              <div className="bg-blue-800 dark:bg-blue-900 p-2 rounded-lg border border-blue-700">
+                <div className="text-[10px] text-blue-300 uppercase font-bold">Euro BCV</div>
+                <div className="flex items-center gap-1">
+                  <span className="text-xs">Bs.</span>
+                  <div className="w-full text-white font-mono font-bold text-sm">
+                    {rates.eur_bcv.toFixed(2)}
+                  </div>
                 </div>
               </div>
-            </div>
-            {/* Binance Buy */}
-            <div className="bg-green-800 dark:bg-green-900 p-2 rounded-lg border border-green-700">
-              <div className="text-[10px] text-green-300 uppercase font-bold">Binance Buy</div>
-              <div className="flex items-center gap-1">
-                <span className="text-xs text-green-400">Bs.</span>
-                <div className="w-full text-white font-mono font-bold text-sm">
-                  {rates.usd_binance_buy?.toFixed(2) || '--'}
+              {/* Binance Buy */}
+              <div className="bg-green-800 dark:bg-green-900 p-2 rounded-lg border border-green-700">
+                <div className="text-[10px] text-green-300 uppercase font-bold">Binance Buy</div>
+                <div className="flex items-center gap-1">
+                  <span className="text-xs text-green-400">Bs.</span>
+                  <div className="w-full text-white font-mono font-bold text-sm">
+                    {rates.usd_binance_buy?.toFixed(2) || '--'}
+                  </div>
                 </div>
               </div>
-            </div>
-            {/* Binance Sell */}
-            <div className="bg-red-800 dark:bg-red-900 p-2 rounded-lg border border-red-700">
-              <div className="text-[10px] text-red-300 uppercase font-bold">Binance Sell</div>
-              <div className="flex items-center gap-1">
-                <span className="text-xs text-red-400">Bs.</span>
-                <div className="w-full text-white font-mono font-bold text-sm">
-                  {rates.usd_binance_sell?.toFixed(2) || '--'}
+              {/* Binance Sell */}
+              <div className="bg-red-800 dark:bg-red-900 p-2 rounded-lg border border-red-700">
+                <div className="text-[10px] text-red-300 uppercase font-bold">Binance Sell</div>
+                <div className="flex items-center gap-1">
+                  <span className="text-xs text-red-400">Bs.</span>
+                  <div className="w-full text-white font-mono font-bold text-sm">
+                    {rates.usd_binance_sell?.toFixed(2) || '--'}
+                  </div>
                 </div>
               </div>
-            </div>
-            {/* Connection Status & Last Update */}
-            <div className="flex flex-col items-center justify-center gap-1">
-              <div className="flex items-center gap-1.5">
-                <div className={`w-2 h-2 rounded-full ${backendConnected ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`}></div>
-                <span className="text-[9px] text-blue-200">
-                  {backendConnected ? 'Conectado' : 'Desconectado'}
-                </span>
-              </div>
-              {lastRateUpdate && (
-                <p className="text-[8px] text-blue-300 leading-tight text-center">
-                  Actualizado: {lastRateUpdate}
+              {/* Connection Status & Last Update */}
+              <div className="flex flex-col items-center justify-center gap-1">
+                <div className="flex items-center gap-1.5">
+                  <div className={`w-2 h-2 rounded-full ${backendConnected ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`}></div>
+                  <span className="text-[9px] text-blue-200">
+                    {backendConnected ? 'Conectado' : 'Desconectado'}
+                  </span>
+                </div>
+                {lastRateUpdate && (
+                  <p className="text-[8px] text-blue-300 leading-tight text-center">
+                    Actualizado: {lastRateUpdate}
+                  </p>
+                )}
+                <p className="text-[8px] text-blue-300 leading-tight text-center opacity-75">
+                  Auto-actualización cada 5 min
                 </p>
-              )}
-              <p className="text-[8px] text-blue-300 leading-tight text-center opacity-75">
-                Auto-actualización cada 5 min
-              </p>
+              </div>
             </div>
           </div>
         </div>
