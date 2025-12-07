@@ -281,21 +281,18 @@ async def startup_event():
     """
     Al iniciar la aplicación, realiza un scraping inicial y configura el scheduler.
     """
-    print("Iniciando la aplicación. Realizando scraping inicial...")
-    try:
+    print("Iniciando la aplicación. Modo Cliente Pasivo activado.")
+    # try:
         # --- MIGRACIÓN ---
         # Desactivando scraping inicial. El sistema ahora es "Passive Client".
         # loop = asyncio.get_event_loop()
-        # result = await loop.run_in_executor(None, get_rates_with_cache)
+        #result = await loop.run_in_executor(None, get_rates_with_cache)
         
         # Scrape Binance rates on startup (DESACTIVADO)
         # ... lógica removida para evitar write-conflict ...
-        print("Modo Cliente Pasivo activado: No se realizará scraping local.")
-        except Exception as binance_error:
-            print(f"Error scraping Binance inicial: {binance_error}")
-            
-    except Exception as e:
-        print(f"Advertencia: El scraping inicial falló. Error: {e}")
+        # print("Modo Cliente Pasivo activado: No se realizará scraping local.")
+    # except Exception as e:
+    #    print(f"Advertencia: El scraping inicial falló. Error: {e}")
     
     # --- MIGRACIÓN A MICROSERVICIO EXTERNO ---
     # El scheduler interno se ha desactivado porque ahora un servicio externo 
