@@ -2,6 +2,7 @@
 import React from 'react';
 import { FinancialItem } from '../../types';
 import { SummaryChart } from './SummaryChart';
+import { TransactionHistory } from './TransactionHistory';
 import { Card } from '../atoms/Card';
 import { ArrowRightLeft, AlertTriangle } from 'lucide-react';
 
@@ -30,10 +31,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ items, exchangeRate, toUSD
                 </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Pending Debts Alert Box */}
-                <Card className="p-4 border-l-4 border-amber-500 bg-gradient-to-br from-slate-700 to-slate-800">
-                    <h3 className="font-bold text-amber-100 mb-3 flex items-center gap-2">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+                {/* Pending Debts Alert Box - Left Column */}
+                <Card className="p-4 border-l-4 border-amber-500 bg-gradient-to-br from-slate-700 to-slate-800 h-full max-h-[600px] overflow-y-auto">
+                    <h3 className="font-bold text-amber-100 mb-3 flex items-center gap-2 sticky top-0 bg-slate-800/90 p-2 rounded backdrop-blur-sm z-10 w-full">
                         <AlertTriangle size={18} className="text-amber-300" />
                         Deudas Pendientes
                     </h3>
@@ -43,12 +44,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ items, exchangeRate, toUSD
                         ) : (
                             pendingDebts.map(debt => (
                                 <div key={debt.id} className="flex justify-between items-center p-3 bg-red-900/30 rounded-lg border-2 border-red-500/40 backdrop-blur-sm">
-                                    <div>
-                                        <span className="font-medium text-slate-100 text-sm block">{debt.name}</span>
-                                        <span className="text-xs text-slate-300">{toUSD(debt).toFixed(2)} USD (aprox)</span>
+                                    <div className="min-w-0">
+                                        <span className="font-medium text-slate-100 text-sm block truncate">{debt.name}</span>
+                                        <span className="text-xs text-slate-300">{toUSD(debt).toFixed(2)} USD</span>
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                        <span className="font-mono font-bold text-red-400 text-sm">{formatMoney(debt.amount, debt.currency)}</span>
+                                    <div className="flex items-center gap-2 pl-2">
+                                        <span className="font-mono font-bold text-red-400 text-sm whitespace-nowrap">{formatMoney(debt.amount, debt.currency)}</span>
                                         <button
                                             onClick={() => onSettleDebt(debt)}
                                             className="text-xs bg-slate-900/50 border-2 border-red-500/50 text-red-300 p-1.5 rounded hover:bg-red-900/30 transition-colors shadow-sm"
@@ -63,9 +64,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ items, exchangeRate, toUSD
                     </div>
                 </Card>
 
-                {/* Receivables Alert Box */}
-                <Card className="p-4 border-l-4 border-emerald-500 bg-gradient-to-br from-slate-700 to-slate-800">
-                    <h3 className="font-bold text-emerald-100 mb-3 flex items-center gap-2">
+                {/* Transaction History - Middle Column */}
+                <div className="lg:col-span-1 h-full min-h-[400px]">
+                    <TransactionHistory formatMoney={formatMoney} isCompact={true} />
+                </div>
+
+                {/* Receivables Alert Box - Right Column */}
+                <Card className="p-4 border-l-4 border-emerald-500 bg-gradient-to-br from-slate-700 to-slate-800 h-full max-h-[600px] overflow-y-auto">
+                    <h3 className="font-bold text-emerald-100 mb-3 flex items-center gap-2 sticky top-0 bg-slate-800/90 p-2 rounded backdrop-blur-sm z-10 w-full">
                         <ArrowRightLeft size={18} className="text-emerald-300" />
                         Por Cobrar (Me deben)
                     </h3>
@@ -75,12 +81,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ items, exchangeRate, toUSD
                         ) : (
                             pendingReceivables.map(item => (
                                 <div key={item.id} className="flex justify-between items-center p-3 bg-emerald-900/20 rounded-lg border-2 border-emerald-500/30 backdrop-blur-sm">
-                                    <div>
-                                        <span className="font-medium text-slate-100 text-sm block">{item.name}</span>
-                                        <span className="text-xs text-slate-300">{toUSD(item).toFixed(2)} USD (aprox)</span>
+                                    <div className="min-w-0">
+                                        <span className="font-medium text-slate-100 text-sm block truncate">{item.name}</span>
+                                        <span className="text-xs text-slate-300">{toUSD(item).toFixed(2)} USD</span>
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                        <span className="font-mono font-bold text-amber-400 text-sm">{formatMoney(item.amount, item.currency)}</span>
+                                    <div className="flex items-center gap-2 pl-2">
+                                        <span className="font-mono font-bold text-amber-400 text-sm whitespace-nowrap">{formatMoney(item.amount, item.currency)}</span>
                                         <button
                                             onClick={() => onSettleDebt(item)}
                                             className="text-xs bg-slate-900/50 border-2 border-emerald-500/50 text-emerald-300 p-1.5 rounded hover:bg-emerald-900/30 transition-colors shadow-sm"

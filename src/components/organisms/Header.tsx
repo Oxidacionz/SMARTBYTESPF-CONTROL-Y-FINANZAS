@@ -133,7 +133,7 @@ export const Header: React.FC<HeaderProps> = ({ darkMode, toggleDarkMode, rates,
             </button>
           </div>
 
-          <div className="flex flex-wrap items-center justify-center md:justify-end gap-2 w-full md:w-auto">
+          <div className="flex flex-wrap items-center justify-center md:justify-end gap-2 w-full md:w-auto rates-dashboard">
             <RateDisplay label="USD BCV" value={rates.usd_bcv} color="bg-gradient-to-br from-slate-700 to-slate-800" />
             <RateDisplay label="EUR BCV" value={rates.eur_bcv} color="bg-gradient-to-br from-slate-700 to-slate-800" />
             <RateDisplay label="BINANCE BUY" value={rates.usd_binance_buy} color="bg-gradient-to-br from-slate-800 to-slate-900" />

@@ -131,6 +131,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ user, onUpdate, onCl
     const handleLogout = async () => {
         try {
             setLoading(true);
+            // Clear local persistence to prevent auto-relogin
+            sessionStorage.removeItem('demoSession');
+            localStorage.removeItem('skipAuth');
+
             const { error } = await supabase.auth.signOut();
             if (error) throw error;
             // The App component listener will handle the redirection to AuthModal

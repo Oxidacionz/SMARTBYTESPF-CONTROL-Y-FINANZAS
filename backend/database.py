@@ -35,6 +35,20 @@ class ExchangeRate(Base):
     last_updated = Column(DateTime, default=datetime.utcnow, nullable=False)
     source = Column(String, default="bcv.org.ve")
 
+class Transaction(Base):
+    """Model for storing financial transactions"""
+    __tablename__ = "transactions"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    code = Column(String, unique=True, index=True) # e.g. OP-20251128-001
+    type = Column(String, nullable=False) # INGRESO, GASTO, CXC (Cobrar), CXP (Pagar)
+    amount = Column(Float, nullable=False)
+    currency = Column(String, default="USD")
+    description = Column(String)
+    status = Column(String, default="PENDIENTE") # PENDIENTE, COMPLETADO
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 # ============================================
 # Database Initialization
 # ============================================

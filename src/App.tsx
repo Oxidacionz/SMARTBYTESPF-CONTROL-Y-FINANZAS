@@ -27,6 +27,7 @@ import { GoalForm } from './components/organisms/forms/GoalForm';
 import { ContributionModal } from './components/organisms/modals/ContributionModal';
 import { FinancialProfileForm } from './components/organisms/forms/FinancialProfileForm';
 import { FinancialPlanDashboard } from './components/organisms/FinancialPlanDashboard';
+import { TransactionHistory } from './components/organisms/TransactionHistory';
 
 // DB Services
 import { dbItems, dbAssets, dbEvents, dbShopping, dbRates, dbDirectory, dbGoals, dbProfile, recommendationEngine } from './services/db';
@@ -71,7 +72,7 @@ function App() {
   // Ideally, app has global sync status. For now, let's keep a local one for Item CRUD.
   const [appSyncStatus, setAppSyncStatus] = useState<'synced' | 'syncing' | 'error'>('synced');
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'assets' | 'liabilities' | 'inventory' | 'goals' | 'advisor'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'assets' | 'liabilities' | 'inventory' | 'goals' | 'advisor' | 'history'>('dashboard');
   const [darkMode, setDarkMode] = useState(true);
 
   // Modals
@@ -640,7 +641,7 @@ function App() {
       <MainLayout
         header={<Header darkMode={darkMode} toggleDarkMode={() => setDarkMode(!darkMode)} rates={rates} setRates={handleRateUpdate} syncStatus={syncStatus} onRefresh={() => loadUserData(session.user.id)} userProfile={userProfile} onOpenProfile={() => setShowProfileModal(true)} onOpenTutorial={() => setShowTutorial(true)} onOpenNotifications={() => setShowNotifications(!showNotifications)} unreadCount={notifications.filter(n => !n.read).length} onForceRefresh={handleForceRatesUpdate} isRefreshing={isRatesUpdating} />}
         summary={
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 summary-cards">
             <StatCard label="Liquidez (Disp.)" value={`$${liquidAssets.toFixed(2)}`} subtext="Bancos y Efectivo" colorBorder="border-green-500" valueType="positive" numericValue={liquidAssets} />
             <StatCard label="Ahorros" value={`$${totalSavings.toFixed(2)}`} subtext="Fondos y Metas" colorBorder="border-blue-500" icon={<TrendingUp size={24} />} valueType="positive" numericValue={totalSavings} />
             <StatCard label="Patrimonio Neto" value={`$${totalPatrimony.toFixed(2)}`} subtext="Balance Total" colorBorder="border-emerald-700" valueType="positive" numericValue={totalPatrimony} />
@@ -649,19 +650,59 @@ function App() {
           </div>
         }
         navigation={
-          <div className="flex flex-wrap items-center gap-2 mb-2">
-            {[
-              { id: 'dashboard', label: 'Resumen' },
-              { id: 'assets', label: 'Tengo / Me Deben' },
-              { id: 'liabilities', label: 'Debo / Gastos' },
-              { id: 'goals', label: '🎯 Metas' },
-              { id: 'inventory', label: 'Inventario' },
-              { id: 'advisor', label: 'Plan Financiero' }
-            ].map(tab => (
-              <Button key={tab.id} size="sm" variant={activeTab === tab.id ? 'primary' : 'secondary'} onClick={() => setActiveTab(tab.id as any)} className="h-8 px-3 text-xs">{tab.label}</Button>
-            ))}
-            <Button variant="secondary" size="sm" onClick={() => setShowShoppingModal(true)} icon={<ShoppingBag size={14} />} className="whitespace-nowrap bg-white dark:bg-gray-800 border border-orange-200 dark:border-orange-800 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/30 h-8 px-3 text-xs">Gastos Hormiga</Button>
-            <Button size="sm" onClick={() => { setEditingItem(null); setShowAddModal(true); }} icon={<Plus size={16} />} className="bg-blue-600 text-white shadow-md hover:bg-blue-700 whitespace-nowrap h-8 px-3 text-xs">+ Agregar</Button>
+          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 mb-2 nav-tabs">
+            {/* Main Tabs Navigation */}
+            <div className="flex items-center gap-1 bg-white dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-x-auto no-scrollbar">
+              {[
+                { id: 'dashboard', label: 'Resumen' },
+                { id: 'assets', label: 'Tengo/Me Deben' },
+                { id: 'liabilities', label: 'Gasto/Deuda' },
+                { id: 'goals', label: 'Metas' },
+                { id: 'inventory', label: 'Inventario' },
+                { id: 'advisor', label: 'Asesor' }
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as any)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${activeTab === tab.id
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/30'
+                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-slate-200'
+                    }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Quick Actions Toolbar */}
+            <div className="flex flex-wrap items-center gap-2 add-buttons-section">
+              {/* Gastos Hormiga Feature */}
+              <button
+                onClick={() => setShowShoppingModal(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-orange-50 dark:bg-orange-900/10 text-orange-600 dark:text-orange-400 border border-orange-200 dark:border-orange-800/50 hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors"
+              >
+                <ShoppingBag size={14} />
+                <span>Hormiga</span>
+              </button>
+
+              <div className="h-6 w-px bg-slate-200 dark:bg-slate-700 mx-1"></div>
+
+              {/* Action Buttons Group */}
+              <div className="flex bg-white dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm gap-1">
+                <button onClick={() => { setEditingItem({ type: 'asset', category: 'Income' } as any); setShowAddModal(true); }} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-50 dark:bg-emerald-900/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 transition-colors">
+                  <span className="text-lg leading-none">+</span> Tengo
+                </button>
+                <button onClick={() => { setEditingItem({ type: 'asset', category: 'Receivable' } as any); setShowAddModal(true); }} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-50 dark:bg-blue-900/10 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors">
+                  <span className="text-lg leading-none">+</span> Cobrar
+                </button>
+                <button onClick={() => { setEditingItem({ type: 'liability', category: 'Expense' } as any); setShowAddModal(true); }} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-50 dark:bg-red-900/10 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors">
+                  <span className="text-lg leading-none font-bold">-</span> Gasto
+                </button>
+                <button onClick={() => { setEditingItem({ type: 'asset', category: 'Savings' } as any); setShowAddModal(true); }} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-50 dark:bg-indigo-900/10 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 transition-colors">
+                  <span className="text-lg leading-none">+</span> Ahorro
+                </button>
+              </div>
+            </div>
           </div>
         }
         mainContent={
@@ -719,6 +760,7 @@ function App() {
                 </Card>
               )
             )}
+
           </>
         }
         sidebar={

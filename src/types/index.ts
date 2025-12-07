@@ -163,3 +163,14 @@ export interface BudgetDistribution {
   expenses: number;
   emergency_fund?: number;
 }
+
+export interface Transaction {
+  id: number;
+  code: string;
+  type: 'INGRESO' | 'GASTO' | 'CXC' | 'CXP';
+  amount: number;
+  currency: Currency;
+  description?: string;
+  status: 'PENDIENTE' | 'COMPLETADO';
+  created_at: string;
+}

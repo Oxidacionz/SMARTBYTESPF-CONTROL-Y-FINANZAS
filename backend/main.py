@@ -401,7 +401,90 @@ async def get_promedios_p2p():
         promedio_venta_ves=round(promedio_venta, 4),
         anuncios_contabilizados_compra=len(precios_compra),
         anuncios_contabilizados_venta=len(precios_venta)
+
     )
+
+# --- Transaction Endpoints ---
+
+from database import Transaction, SessionLocal
+from typing import List, Optional
+import uuid
+
+class TransactionCreate(BaseModel):
+    type: str # INGRESO, GASTO, CXC, CXP
+    amount: float
+    currency: str = "USD"
+    description: Optional[str] = None
+    status: str = "PENDIENTE" # PENDIENTE, COMPLETADO
+
+class TransactionResponse(BaseModel):
+    id: int
+    code: Optional[str]
+    type: str
+    amount: float
+    currency: str
+    description: Optional[str]
+    status: str
+    created_at: datetime
+    
+    class Config:
+        orm_mode = True
+
+def generate_transaction_code(type_prefix: str, db_id: int):
+    # e.g. ING-20251128-0001
+    date_str = datetime.now().strftime("%Y%m%d")
+    prefix_map = {
+        "INGRESO": "ING",
+        "GASTO": "EGR",
+        "CXC": "CXC",
+        "CXP": "CXP"
+    }
+    prefix = prefix_map.get(type_prefix, "TRX")
+    return f"{prefix}-{date_str}-{db_id:04d}"
+
+@app.post("/transactions/", response_model=TransactionResponse, summary="Crear nueva transacción", tags=["Transacciones"])
+async def create_transaction(transaction: TransactionCreate):
+    db = SessionLocal()
+    try:
+        # Create base record
+        db_transaction = Transaction(
+            type=transaction.type,
+            amount=transaction.amount,
+            currency=transaction.currency,
+            description=transaction.description,
+            status=transaction.status,
+            code=f"TEMP-{uuid.uuid4().hex[:8]}" # Temp code
+        )
+        db.add(db_transaction)
+        db.commit()
+        db.refresh(db_transaction)
+        
+        # Generate real code based on ID
+        real_code = generate_transaction_code(transaction.type, db_transaction.id)
+        db_transaction.code = real_code
+        db.commit()
+        db.refresh(db_transaction)
+        
+        return db_transaction
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
+
+@app.get("/transactions/", response_model=List[TransactionResponse], summary="Listar historial de transacciones", tags=["Transacciones"])
+async def get_transactions(type: Optional[str] = None, status: Optional[str] = None):
+    db = SessionLocal()
+    try:
+        query = db.query(Transaction)
+        if type:
+            query = query.filter(Transaction.type == type)
+        if status:
+            query = query.filter(Transaction.status == status)
+        
+        return query.order_by(Transaction.created_at.desc()).all()
+    finally:
+        db.close()
 
 @app.post("/api/rates/force-refresh", summary="Forzar actualización de tasas", tags=["Tasas"])
 async def force_refresh_rates():
