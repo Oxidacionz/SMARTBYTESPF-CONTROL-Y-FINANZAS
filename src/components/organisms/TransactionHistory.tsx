@@ -17,6 +17,7 @@ export const TransactionHistory: React.FC<Props> = ({ formatMoney, isCompact = f
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [loading, setLoading] = useState(false);
     const [filterType, setFilterType] = useState<string | null>(null);
+    const [isCollapsed, setIsCollapsed] = useState(false); // Collapsed state for compact mode
 
     // Form State
     const [showForm, setShowForm] = useState(false);
@@ -90,41 +91,50 @@ export const TransactionHistory: React.FC<Props> = ({ formatMoney, isCompact = f
 
     if (isCompact) {
         return (
-            <Card className="h-full max-h-[600px] flex flex-col bg-white dark:bg-slate-900 border-t-4 border-blue-500">
-                <div className="p-4 border-b border-gray-100 dark:border-slate-700 flex justify-between items-center sticky top-0 bg-white dark:bg-slate-900 z-10">
-                    <h3 className="font-bold text-gray-800 dark:text-gray-200 flex items-center gap-2">
-                        <Clock size={18} className="text-blue-500" />
+            <Card className="flex flex-col bg-slate-800 border border-amber-400 shadow-xl overflow-hidden transition-all duration-300">
+                <div
+                    className="p-3 border-b border-amber-400/30 flex justify-between items-center cursor-pointer hover:bg-slate-700/50 transition-colors"
+                    onClick={() => setIsCollapsed(!isCollapsed)}
+                >
+                    <h3 className="font-bold text-amber-100 flex items-center gap-2 text-sm">
+                        <Clock size={16} className="text-amber-400" />
                         Historial Reciente
                     </h3>
-                    <Button size="sm" variant="ghost" icon={<RefreshCw size={14} />} onClick={fetchTransactions} />
+                    <div className="flex items-center gap-2">
+                        {isCollapsed ? <TrendingDown size={14} className="text-amber-400" /> : <TrendingUp size={14} className="text-amber-400" />}
+                    </div>
                 </div>
-                <div className="flex-1 overflow-y-auto p-2 space-y-2">
-                    {loading ? (
-                        <div className="p-4 text-center text-gray-500"><RefreshCw className="animate-spin mx-auto mb-2" /></div>
-                    ) : transactions.length > 0 ? (
-                        transactions.slice(0, 10).map(tx => (
-                            <div key={tx.id} className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors border border-transparent hover:border-slate-200 dark:hover:border-slate-700">
-                                <div className="flex items-center gap-3">
-                                    <div className="p-2 rounded-full bg-gray-100 dark:bg-slate-800">
-                                        {getTypeIcon(tx.type)}
+                {!isCollapsed && (
+                    <div className="flex-1 overflow-y-auto p-2 space-y-2 max-h-[400px]">
+                        {loading ? (
+                            <div className="p-4 text-center text-gray-400"><RefreshCw className="animate-spin mx-auto mb-2" /></div>
+                        ) : transactions.length > 0 ? (
+                            transactions.slice(0, 5).map(tx => (
+                                <div key={tx.id} className="flex items-center justify-between p-2 rounded bg-slate-700/30 border border-slate-700 hover:border-amber-400/30 transition-all group">
+                                    <div className="flex items-center gap-2">
+                                        <div className="p-1.5 rounded-full bg-slate-800 group-hover:bg-slate-700 transition-colors">
+                                            {getTypeIcon(tx.type)}
+                                        </div>
+                                        <div className="min-w-0">
+                                            <p className="text-xs font-medium text-slate-200 truncate w-24 group-hover:text-amber-200 transition-colors">{tx.description || tx.type}</p>
+                                            <p className="text-[10px] text-slate-400">{tx.created_at ? format(new Date(tx.created_at), 'dd/MM HH:mm') : '-'}</p>
+                                        </div>
                                     </div>
-                                    <div className="min-w-0">
-                                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate w-32">{tx.description || tx.type}</p>
-                                        <p className="text-xs text-gray-500">{tx.created_at ? format(new Date(tx.created_at), 'dd/MM HH:mm') : '-'}</p>
+                                    <div className="text-right">
+                                        <p className={`text-xs font-bold ${tx.type === 'INGRESO' || tx.type === 'CXC' ? 'text-emerald-400' : 'text-red-400'}`}>
+                                            {tx.type === 'GASTO' || tx.type === 'CXP' ? '-' : '+'}{formatMoney(tx.amount, tx.currency)}
+                                        </p>
                                     </div>
                                 </div>
-                                <div className="text-right">
-                                    <p className={`text-sm font-bold ${tx.type === 'INGRESO' || tx.type === 'CXC' ? 'text-green-600' : 'text-red-600'}`}>
-                                        {tx.type === 'GASTO' || tx.type === 'CXP' ? '-' : '+'}{formatMoney(tx.amount, tx.currency)}
-                                    </p>
-                                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${getStatusColor(tx.status)}`}>{tx.status}</span>
-                                </div>
-                            </div>
-                        ))
-                    ) : (
-                        <p className="text-center text-gray-500 text-sm py-4">Sin movimientos recientes</p>
-                    )}
-                </div>
+                            ))
+                        ) : (
+                            <p className="text-center text-gray-500 text-xs py-4">Sin movimientos recientes</p>
+                        )}
+                        <div className="pt-2 border-t border-slate-700/50 text-center">
+                            <Button size="sm" variant="ghost" className="text-xs text-amber-400 hover:text-amber-300 w-full py-1 h-auto" onClick={fetchTransactions} icon={<RefreshCw size={12} />}>Actualizar</Button>
+                        </div>
+                    </div>
+                )}
             </Card>
         );
     }
