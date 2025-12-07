@@ -283,81 +283,39 @@ async def startup_event():
     """
     print("Iniciando la aplicación. Realizando scraping inicial...")
     try:
-        # Ejecutar el scraping BCV de forma síncrona en un threadpool
-        loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(None, get_rates_with_cache)
-        print("Caché BCV inicializado con éxito.")
+        # --- MIGRACIÓN ---
+        # Desactivando scraping inicial. El sistema ahora es "Passive Client".
+        # loop = asyncio.get_event_loop()
+        # result = await loop.run_in_executor(None, get_rates_with_cache)
         
-        # Scrape Binance rates on startup
-        try:
-            precios_compra = obtener_precios_p2p("BUY")
-            precios_venta = obtener_precios_p2p("SELL")
-            
-            promedio_compra = calcular_promedio(precios_compra)
-            promedio_venta = calcular_promedio(precios_venta)
-            
-            if promedio_compra > 0 and promedio_venta > 0:
-                # Save all rates to database
-                save_rates(
-                    usd_bcv=result.get('USD', 0),
-                    eur_bcv=result.get('EUR', 0),
-                    usd_binance_buy=promedio_compra,
-                    usd_binance_sell=promedio_venta
-                )
-                print(f"Tasa Binance inicial: Buy={promedio_compra:.2f}, Sell={promedio_venta:.2f}")
-            else:
-                print("No se pudo obtener tasa inicial de Binance")
+        # Scrape Binance rates on startup (DESACTIVADO)
+        # ... lógica removida para evitar write-conflict ...
+        print("Modo Cliente Pasivo activado: No se realizará scraping local.")
         except Exception as binance_error:
             print(f"Error scraping Binance inicial: {binance_error}")
             
     except Exception as e:
         print(f"Advertencia: El scraping inicial falló. Error: {e}")
     
-    # Start scheduler
-    # 1. Daily update at 6:00 AM Venezuela Time
-    scheduler.add_job(
-        update_rates_job,
-        trigger=CronTrigger(hour=6, minute=0, timezone=VENEZUELA_TZ),
-        id='daily_update_6am',
-        name='Update exchange rates daily at 6 AM VET',
-        replace_existing=True
-    )
-    
-    # 2. One-time update in 5 minutes from now (Venezuela Time) - For testing
-    # Obtener hora actual en Venezuela
-    now_venezuela = datetime.now(VENEZUELA_TZ)
-    run_date = now_venezuela + timedelta(minutes=5)
-    
-    scheduler.add_job(
-        update_rates_job,
-        trigger=DateTrigger(run_date=run_date),
-        id='one_time_update',
-        name='One-time update in 5 minutes (testing)',
-        replace_existing=True
-    )
-    
-    # 3. Regular updates every 4 hours
-    # Interval triggers don't need timezone as they are relative
-    scheduler.add_job(
-        update_rates_job,
-        trigger=IntervalTrigger(hours=4),
-        id='interval_update',
-        name='Update exchange rates every 4 hours',
-        replace_existing=True
-    )
+    # --- MIGRACIÓN A MICROSERVICIO EXTERNO ---
+    # El scheduler interno se ha desactivado porque ahora un servicio externo 
+    # (Scraper-Financial-Service) alimenta la base de datos automáticamente.
+    # 
+    # Esto previene conflictos de escritura y duplicidad de scraping.
 
-    scheduler.start()
-    print(f"[SCHEDULER] Scheduler iniciado:")
-    print(f"   - Actualización diaria: 6:00 AM (Hora Venezuela)")
-    print(f"   - Actualización de prueba: {run_date.strftime('%H:%M:%S')} (Hora Venezuela)")
-    print(f"   - Actualización regular: Cada 4 horas")
+    # Start scheduler
+    # scheduler.add_job(update_rates_job, trigger=CronTrigger(hour=6, minute=0, timezone=VENEZUELA_TZ), ...)
+    # scheduler.start()
+    
+    print(f"[SYSTEM] Scheduler interno desactivado. Leyendo tasas de base de datos externa.")
 
 @app.on_event("shutdown")
 async def shutdown_event():
     """
     Detener el scheduler al cerrar la aplicación
     """
-    scheduler.shutdown()
+    if scheduler.running:
+        scheduler.shutdown()
     print("[SCHEDULER] Scheduler detenido")
 
 
