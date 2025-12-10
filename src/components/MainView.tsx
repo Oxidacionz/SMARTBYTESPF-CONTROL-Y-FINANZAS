@@ -179,6 +179,9 @@ export const MainView: React.FC<MainViewProps> = ({ session, userProfile, darkMo
       await deleteAsset(details.assetId);
     } else if (method === 'asset_in' && details.newAsset) {
       await addAsset(details.newAsset);
+    } else if (method === 'delete_debt') {
+      // No additional action needed, just the debt update above handles the "record" in history implicitly by the item update
+      // We might want to ensure 'note' is preserved which is handled in updatedDebtItem
     }
     setShowDebtModal(false);
   };
