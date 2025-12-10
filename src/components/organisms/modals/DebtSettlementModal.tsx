@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { FinancialItem, PhysicalAsset } from '../../../types';
-import { CheckCircle2, Coins, ArrowRightLeft, PackagePlus, PackageMinus, X } from 'lucide-react';
+import { CheckCircle2, Coins, ArrowRightLeft, PackagePlus, PackageMinus, X, Trash2 } from 'lucide-react';
 import { Button } from '../../atoms/Button';
 import { Input } from '../../atoms/Input';
 
