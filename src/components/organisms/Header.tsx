@@ -1,7 +1,7 @@
 
 
 import React, { useState, useEffect } from 'react';
-import { Sun, Moon, ChevronDown, CheckCircle, RefreshCw, AlertCircle, User, HelpCircle, Bell } from 'lucide-react';
+import { Sun, Moon, ChevronDown, CheckCircle, RefreshCw, AlertCircle, User, HelpCircle, Bell, Menu } from 'lucide-react';
 import { ExchangeRates, UserProfile } from '../../types';
 
 interface HeaderProps {
